@@ -49,6 +49,8 @@ export interface BullyingResult {
     risk_score: number;
     /** Echo of provided external_id (if any) */
     external_id?: string;
+    /** Echo of provided customer_id (if any) */
+    customer_id?: string;
     /** Echo of provided metadata (if any) */
     metadata?: Record<string, unknown>;
 }
@@ -90,6 +92,8 @@ export interface GroomingResult {
     recommended_action: string;
     /** Echo of provided external_id (if any) */
     external_id?: string;
+    /** Echo of provided customer_id (if any) */
+    customer_id?: string;
     /** Echo of provided metadata (if any) */
     metadata?: Record<string, unknown>;
 }
@@ -122,6 +126,8 @@ export interface UnsafeResult {
     recommended_action: string;
     /** Echo of provided external_id (if any) */
     external_id?: string;
+    /** Echo of provided customer_id (if any) */
+    customer_id?: string;
     /** Echo of provided metadata (if any) */
     metadata?: Record<string, unknown>;
 }
@@ -154,6 +160,8 @@ export interface AnalyzeResult {
     recommended_action: string;
     /** Echo of provided external_id (if any) */
     external_id?: string;
+    /** Echo of provided customer_id (if any) */
+    customer_id?: string;
     /** Echo of provided metadata (if any) */
     metadata?: Record<string, unknown>;
 }

@@ -380,6 +380,7 @@ export class SafeNest {
                 text: input.content,
                 context: this.normalizeContext(input.context),
                 ...(input.external_id && { external_id: input.external_id }),
+                ...(input.customer_id && { customer_id: input.customer_id }),
                 ...(input.metadata && { metadata: input.metadata }),
             }
         );
@@ -419,6 +420,7 @@ export class SafeNest {
                     ...this.normalizeContext(input.context),
                 },
                 ...(input.external_id && { external_id: input.external_id }),
+                ...(input.customer_id && { customer_id: input.customer_id }),
                 ...(input.metadata && { metadata: input.metadata }),
             }
         );
@@ -448,6 +450,7 @@ export class SafeNest {
                 text: input.content,
                 context: this.normalizeContext(input.context),
                 ...(input.external_id && { external_id: input.external_id }),
+                ...(input.customer_id && { customer_id: input.customer_id }),
                 ...(input.metadata && { metadata: input.metadata }),
             }
         );
@@ -488,6 +491,7 @@ export class SafeNest {
                 content: input.content,
                 context: input.context,
                 external_id: input.external_id,
+                customer_id: input.customer_id,
                 metadata: input.metadata,
             }));
         }
@@ -498,6 +502,7 @@ export class SafeNest {
                 content: input.content,
                 context: input.context,
                 external_id: input.external_id,
+                customer_id: input.customer_id,
                 metadata: input.metadata,
             }));
         }
@@ -560,6 +565,7 @@ export class SafeNest {
             unsafe: unsafeResult,
             recommended_action,
             ...(input.external_id && { external_id: input.external_id }),
+            ...(input.customer_id && { customer_id: input.customer_id }),
             ...(input.metadata && { metadata: input.metadata }),
         };
     }
@@ -608,6 +614,9 @@ export class SafeNest {
         if (input.external_id) {
             body.external_id = input.external_id;
         }
+        if (input.customer_id) {
+            body.customer_id = input.customer_id;
+        }
         if (input.metadata) {
             body.metadata = input.metadata;
         }
@@ -652,6 +661,7 @@ export class SafeNest {
                 child_age: input.childAge,
                 severity: input.severity,
                 ...(input.external_id && { external_id: input.external_id }),
+                ...(input.customer_id && { customer_id: input.customer_id }),
                 ...(input.metadata && { metadata: input.metadata }),
             }
         );
@@ -695,6 +705,7 @@ export class SafeNest {
                     ...input.incident,
                 },
                 ...(input.external_id && { external_id: input.external_id }),
+                ...(input.customer_id && { customer_id: input.customer_id }),
                 ...(input.metadata && { metadata: input.metadata }),
             }
         );

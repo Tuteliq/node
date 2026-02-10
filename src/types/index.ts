@@ -19,6 +19,12 @@ export interface TrackingFields {
      */
     external_id?: string;
     /**
+     * Your end-customer identifier for multi-tenant / B2B2C scenarios.
+     * Maximum 255 characters. Echoed back in response and included in webhooks,
+     * enabling you to route alerts to the correct customer from a single webhook endpoint.
+     */
+    customer_id?: string;
+    /**
      * Custom key-value pairs for additional context
      * Stored with detection results and included in webhooks.
      */
