@@ -40,6 +40,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.1.0] - 2026-02-10
+
+### Added
+- `customer_id` tracking field for multi-tenant / B2B2C scenarios
+  - Available on all detection methods (`detectBullying`, `detectGrooming`, `detectUnsafe`, `analyze`, `analyzeEmotions`, `getActionPlan`, `generateReport`)
+  - Echoed back in API response for easy correlation
+  - Included in webhook payloads for routing alerts to the correct customer
+  - Maximum 255 characters
+
 ## [Unreleased]
 
 ### Added

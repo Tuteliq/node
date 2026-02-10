@@ -112,6 +112,40 @@ const safenest = new SafeNest('your-api-key', {
 
 ---
 
+### Tracking Fields
+
+All detection methods accept optional tracking fields for correlation, multi-tenant routing, and custom metadata:
+
+```typescript
+const result = await safenest.detectBullying({
+  content: "Nobody likes you, just leave",
+  context: 'chat',
+
+  // Optional tracking fields — echoed back in the response and included in webhooks
+  external_id: 'msg_abc123',       // Your unique identifier for correlation
+  customer_id: 'cust_xyz789',      // Your end-customer ID (B2B2C / multi-tenant)
+  metadata: { channel: 'discord' } // Arbitrary key-value pairs
+})
+
+// Echoed back in response
+console.log(result.external_id)   // 'msg_abc123'
+console.log(result.customer_id)   // 'cust_xyz789'
+console.log(result.metadata)      // { channel: 'discord' }
+```
+
+| Field | Type | Max Length | Description |
+|-------|------|-----------|-------------|
+| `external_id` | `string?` | 255 | Your internal identifier (message ID, content ID, etc.) |
+| `customer_id` | `string?` | 255 | Your end-customer identifier for multi-tenant / B2B2C scenarios |
+| `metadata` | `object?` | — | Custom key-value pairs stored with the detection result |
+
+These fields are:
+- **Echoed** in the API response for easy matching
+- **Included** in webhook payloads, enabling you to route alerts to the correct customer from a single webhook endpoint
+- **Stored** with the incident in Firestore for audit trail
+
+---
+
 ### Safety Detection
 
 #### `detectBullying(input)`
