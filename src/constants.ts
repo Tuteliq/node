@@ -99,8 +99,9 @@ export enum ToolName {
  */
 export enum Tier {
     STARTER = 'starter',       // Free forever - 1,000 API calls/month
-    PRO = 'pro',               // $99/mo - 100,000 API calls/month
-    BUSINESS = 'business',     // $199/mo - 250,000 API calls/month
+    INDIE = 'indie',           // $29/mo - 10,000 API calls/month
+    PRO = 'pro',               // $99/mo - 50,000 API calls/month
+    BUSINESS = 'business',     // $349/mo - 200,000 API calls/month
     ENTERPRISE = 'enterprise', // Custom - Unlimited API calls
 }
 
@@ -109,8 +110,9 @@ export enum Tier {
  */
 export const TIER_MONTHLY_LIMITS: Record<Tier, number> = {
     [Tier.STARTER]: 1000,
-    [Tier.PRO]: 100000,
-    [Tier.BUSINESS]: 250000,
+    [Tier.INDIE]: 10000,
+    [Tier.PRO]: 50000,
+    [Tier.BUSINESS]: 200000,
     [Tier.ENTERPRISE]: -1, // Unlimited
 };
 

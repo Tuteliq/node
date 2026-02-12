@@ -45,6 +45,8 @@ import {
     ServerError,
     TimeoutError,
     NetworkError,
+    QuotaExceededError,
+    TierAccessError,
 } from './errors.js';
 
 import { withRetry } from './utils/retry.js';
@@ -290,7 +292,19 @@ export class SafeNest {
                     throw new TimeoutError(`Request timed out after ${this.timeout}ms`);
                 }
 
-                if (error.message.includes('fetch') || error.message.includes('network')) {
+                // Detect network errors across runtimes (Node, browsers, edge)
+                if (
+                    error instanceof TypeError ||
+                    error.name === 'TypeError' ||
+                    error.message.includes('fetch') ||
+                    error.message.includes('network') ||
+                    error.message.includes('ECONNREFUSED') ||
+                    error.message.includes('ECONNRESET') ||
+                    error.message.includes('ENOTFOUND') ||
+                    error.message.includes('ERR_NETWORK') ||
+                    error.message.includes('Failed to fetch') ||
+                    error.message.includes('Network request failed')
+                ) {
                     throw new NetworkError(error.message);
                 }
             }
@@ -317,11 +331,14 @@ export class SafeNest {
             case 401:
                 throw new AuthenticationError(message, { code, suggestion, links });
             case 403:
-                throw new SafeNestError(message, status, details, { code, suggestion, links });
+                throw new TierAccessError(message, { code, suggestion, links });
             case 404:
                 throw new NotFoundError(message, { code, suggestion, links });
             case 429: {
                 const retryAfter = headers.get('retry-after');
+                if (code === 'RATE_2003' || code === 'QUOTA_EXCEEDED') {
+                    throw new QuotaExceededError(message, { code, suggestion, links });
+                }
                 throw new RateLimitError(
                     message,
                     retryAfter ? parseInt(retryAfter, 10) : undefined,
@@ -788,12 +805,28 @@ export class SafeNest {
             'POST',
             '/api/v1/batch/analyze',
             {
-                items: input.items.map(item => ({
-                    type: item.type,
-                    text: item.content,
-                    context: this.normalizeContext(item.context),
-                    external_id: item.external_id,
-                })),
+                items: input.items.map(item => {
+                    if (item.type === 'grooming') {
+                        return {
+                            type: item.type,
+                            messages: item.messages.map(m => ({
+                                sender_role: m.role,
+                                text: m.content,
+                            })),
+                            context: {
+                                ...(item.childAge != null && { child_age: item.childAge }),
+                                ...this.normalizeContext(item.context),
+                            },
+                            external_id: item.external_id,
+                        };
+                    }
+                    return {
+                        type: item.type,
+                        text: item.content,
+                        context: this.normalizeContext(item.context),
+                        external_id: item.external_id,
+                    };
+                }),
                 options: {
                     parallel: input.parallel ?? true,
                     continue_on_error: input.continueOnError ?? true,

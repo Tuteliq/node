@@ -27,6 +27,8 @@ export {
     ServerError,
     TimeoutError,
     NetworkError,
+    QuotaExceededError,
+    TierAccessError,
 } from './errors.js';
 
 // Type exports

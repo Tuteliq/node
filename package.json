@@ -1,6 +1,6 @@
 {
   "name": "@safenest/sdk",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "TypeScript SDK for SafeNest AI child safety API - Detect bullying, grooming, and unsafe content",
   "type": "module",
   "main": "./dist/index.js",
@@ -8,14 +8,17 @@
   "exports": {
     ".": {
       "import": "./dist/index.js",
+      "require": "./dist/cjs/index.js",
       "types": "./dist/index.d.ts"
     },
     "./constants": {
       "import": "./dist/constants.js",
+      "require": "./dist/cjs/constants.js",
       "types": "./dist/constants.d.ts"
     },
     "./types": {
       "import": "./dist/types/index.js",
+      "require": "./dist/cjs/types/index.js",
       "types": "./dist/types/index.d.ts"
     }
   },
@@ -25,7 +28,7 @@
     "LICENSE"
   ],
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && tsc -p tsconfig.cjs.json",
     "clean": "rm -rf dist",
     "prepublishOnly": "npm run clean && npm run build",
     "test": "vitest run",

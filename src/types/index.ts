@@ -107,11 +107,7 @@ export interface UsageQuota {
 // Batch Types
 // =============================================================================
 
-export interface BatchItem {
-    /** Analysis type to perform */
-    type: 'bullying' | 'grooming' | 'unsafe' | 'emotions';
-    /** Content to analyze */
-    content: string;
+export interface BatchItemBase {
     /** Optional context - string shorthand or detailed object */
     context?: string | {
         language?: string;
@@ -122,6 +118,24 @@ export interface BatchItem {
     /** Optional external ID for correlation */
     external_id?: string;
 }
+
+export interface BatchTextItem extends BatchItemBase {
+    /** Analysis type to perform */
+    type: 'bullying' | 'unsafe' | 'emotions';
+    /** Content to analyze */
+    content: string;
+}
+
+export interface BatchGroomingItem extends BatchItemBase {
+    /** Grooming analysis type */
+    type: 'grooming';
+    /** Messages to analyze for grooming patterns */
+    messages: Array<{ role: string; content: string }>;
+    /** Age of the child */
+    childAge?: number;
+}
+
+export type BatchItem = BatchTextItem | BatchGroomingItem;
 
 export interface BatchAnalyzeInput {
     /** Items to analyze (max 25) */
@@ -167,7 +181,8 @@ export interface RequestMeta {
     usage?: Usage;
 }
 
-// Legacy type alias for backwards compatibility
-export interface SafeNestClientOptions extends SafeNestOptions {
-    apiKey: string;
-}
+/**
+ * @deprecated Use `SafeNestOptions` instead. The API key is passed as the first
+ * argument to the `SafeNest` constructor, not as an option.
+ */
+export type SafeNestClientOptions = SafeNestOptions;

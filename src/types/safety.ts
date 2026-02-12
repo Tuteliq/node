@@ -142,7 +142,7 @@ export interface AnalyzeInput extends TrackingFields {
     /** Context for better analysis */
     context?: ContextInput;
     /** Which detections to run (defaults to ['bullying', 'unsafe']) */
-    include?: Array<'bullying' | 'unsafe' | 'grooming'>;
+    include?: Array<'bullying' | 'unsafe'>;
 }
 
 export interface AnalyzeResult {

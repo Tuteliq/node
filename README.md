@@ -209,11 +209,13 @@ console.log(result.recommended_action) // 'immediate_intervention'
 
 Quick combined analysis — runs bullying and unsafe detection in parallel.
 
+> **Note**: This method fires one API call per detection type included (default: 2 calls for bullying + unsafe). Each call counts against your monthly quota. Use `include` to run only the checks you need.
+
 ```typescript
-// Simple string input
+// Simple string input (costs 2 API calls: bullying + unsafe)
 const result = await safenest.analyze("Message to check")
 
-// With options
+// With options — run only bullying (costs 1 API call)
 const result = await safenest.analyze({
   content: "Message to check",
   context: 'social_media',
@@ -387,6 +389,8 @@ import {
   SafeNestError,
   AuthenticationError,
   RateLimitError,
+  QuotaExceededError,
+  TierAccessError,
   ValidationError,
   NotFoundError,
   ServerError,
@@ -400,9 +404,15 @@ try {
   if (error instanceof AuthenticationError) {
     // 401 - Invalid or missing API key
     console.error('Check your API key')
+  } else if (error instanceof TierAccessError) {
+    // 403 - Endpoint not available on your plan
+    console.error('Upgrade your plan:', error.suggestion)
+  } else if (error instanceof QuotaExceededError) {
+    // 429 - Monthly quota exceeded
+    console.error('Quota exceeded, upgrade or buy credits')
   } else if (error instanceof RateLimitError) {
-    // 429 - Too many requests
-    console.error('Rate limited, slow down')
+    // 429 - Too many requests per minute
+    console.error('Rate limited, retry after:', error.retryAfter)
   } else if (error instanceof ValidationError) {
     // 400 - Invalid request parameters
     console.error('Invalid input:', error.details)
@@ -506,20 +516,40 @@ import { Severity, RiskCategory } from '@safenest/sdk/constants'
 
 ## Examples
 
-### React Integration
+### Next.js Integration (App Router)
+
+Use a server-side API route to keep your API key secure:
 
 ```typescript
+// app/api/safety/route.ts (server-side — API key stays on the server)
 import { SafeNest } from '@safenest/sdk'
-import { useState } from 'react'
+import { NextResponse } from 'next/server'
 
-const safenest = new SafeNest(process.env.NEXT_PUBLIC_SAFENEST_API_KEY)
+const safenest = new SafeNest(process.env.SAFENEST_API_KEY!)
+
+export async function POST(req: Request) {
+  const { message } = await req.json()
+  const result = await safenest.analyze(message)
+  return NextResponse.json(result)
+}
+```
+
+```typescript
+// app/components/MessageInput.tsx (client-side — no API key exposed)
+'use client'
+import { useState } from 'react'
 
 function MessageInput() {
   const [message, setMessage] = useState('')
   const [warning, setWarning] = useState<string | null>(null)
 
   const handleSubmit = async () => {
-    const result = await safenest.analyze(message)
+    const res = await fetch('/api/safety', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message }),
+    })
+    const result = await res.json()
 
     if (result.risk_level !== 'safe') {
       setWarning(result.summary)
@@ -614,7 +644,7 @@ We welcome contributions! Please see our [Contributing Guide](https://github.com
 ```bash
 # Clone the repo
 git clone https://github.com/SafeNestSDK/node.git
-cd sdk-typescript
+cd node
 
 # Install dependencies
 npm install
@@ -638,12 +668,15 @@ npm run build
 
 Rate limits depend on your subscription tier:
 
-| Plan | Price | API Calls/month | Features |
-|------|-------|-----------------|----------|
-| **Starter** | Free | 1,000 | Basic moderation, JS SDK, Community support |
-| **Pro** | $99/mo | 100,000 | Advanced AI, All SDKs, Edge network (sub-100ms), Real-time analytics |
-| **Business** | $199/mo | 250,000 | Everything in Pro + 5 team seats, Custom webhooks, SSO, 99.9% SLA |
-| **Enterprise** | Custom | Unlimited | Custom AI training, Dedicated infrastructure, 24/7 support, SOC 2 |
+| Plan | Price | API Calls/month | Rate Limit | Features |
+|------|-------|-----------------|------------|----------|
+| **Starter** | Free | 1,000 | 60/min | 3 Safety endpoints, 1 API key, Community support |
+| **Indie** | $29/mo | 10,000 | 300/min | All 7 endpoints, 2 API keys, Dashboard analytics |
+| **Pro** | $99/mo | 50,000 | 1,000/min | 5 API keys, Webhooks, Custom policy, Priority latency |
+| **Business** | $349/mo | 200,000 | 5,000/min | 20 API keys, SSO, SLA 99.9%, HIPAA/SOC2 docs |
+| **Enterprise** | Custom | Unlimited | Custom | Dedicated infra, 24/7 support, SCIM, On-premise |
+
+**Credit Packs** (available to all tiers): 5K calls/$15 | 25K calls/$59 | 100K calls/$199
 
 ---
 
@@ -656,12 +689,12 @@ The **bullying** and **unsafe content** methods analyze a single `text` field pe
 ```typescript
 // Bad — each message analyzed in isolation, easily evaded
 for (const msg of messages) {
-  await client.detectBullying({ text: msg });
+  await client.detectBullying({ content: msg });
 }
 
 // Good — recent messages analyzed together
 const window = recentMessages.slice(-10).join(' ');
-await client.detectBullying({ text: window });
+await client.detectBullying({ content: window });
 ```
 
 The **grooming** method already accepts a `messages[]` array and analyzes the full conversation in context.
