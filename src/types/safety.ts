@@ -47,6 +47,10 @@ export interface BullyingResult {
     recommended_action: string;
     /** Risk score (0-1) */
     risk_score: number;
+    /** Language code used for analysis */
+    language?: string;
+    /** Language support maturity */
+    language_status?: string;
     /** Number of credits consumed by this request */
     credits_used?: number;
     /** Echo of provided external_id (if any) */
@@ -92,6 +96,10 @@ export interface GroomingResult {
     risk_score: number;
     /** Recommended action to take */
     recommended_action: string;
+    /** Language code used for analysis */
+    language?: string;
+    /** Language support maturity */
+    language_status?: string;
     /** Number of credits consumed by this request */
     credits_used?: number;
     /** Echo of provided external_id (if any) */
@@ -128,6 +136,10 @@ export interface UnsafeResult {
     rationale: string;
     /** Recommended action to take */
     recommended_action: string;
+    /** Language code used for analysis */
+    language?: string;
+    /** Language support maturity */
+    language_status?: string;
     /** Number of credits consumed by this request */
     credits_used?: number;
     /** Echo of provided external_id (if any) */

@@ -80,6 +80,57 @@ export interface VoiceAnalysisResult {
 }
 
 // =============================================================================
+// Video Analysis
+// =============================================================================
+
+export interface VideoSafetyFinding {
+    /** Frame index where the finding occurred */
+    frame_index: number;
+    /** Timestamp in seconds */
+    timestamp: number;
+    /** Description of the finding */
+    description: string;
+    /** Safety categories detected */
+    categories: string[];
+    /** Severity score (0-1) */
+    severity: number;
+}
+
+export interface AnalyzeVideoInput extends TrackingFields {
+    /** Video file — Buffer, Blob, or File */
+    file: Buffer | Blob | File;
+    /** Original filename (e.g., "clip.mp4") */
+    filename: string;
+    /** Customer-provided file reference ID (echoed in response) */
+    fileId?: string;
+    /** Age group for calibrated analysis */
+    ageGroup?: string;
+    /** Platform name */
+    platform?: string;
+}
+
+export interface VideoAnalysisResult {
+    /** Customer-provided file reference (if provided) */
+    file_id?: string;
+    /** Number of frames analyzed */
+    frames_analyzed: number;
+    /** Safety findings across frames */
+    safety_findings: VideoSafetyFinding[];
+    /** Maximum risk score across all findings (0-1) */
+    overall_risk_score: number;
+    /** Overall severity level */
+    overall_severity: ContentSeverity;
+    /** Number of credits consumed by this request */
+    credits_used?: number;
+    /** Echo of provided external_id */
+    external_id?: string;
+    /** Echo of provided customer_id */
+    customer_id?: string;
+    /** Echo of provided metadata */
+    metadata?: Record<string, unknown>;
+}
+
+// =============================================================================
 // Vision / Image Analysis
 // =============================================================================
 

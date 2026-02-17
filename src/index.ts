@@ -81,11 +81,24 @@ export type {
     EmotionMonitoringConfig,
     IncidentReportingConfig,
 
+    // Detection types (Fraud + Safety Extended)
+    DetectionInput,
+    DetectionResult,
+    DetectionCategory,
+    DetectionEvidence,
+    AgeCalibration,
+    AnalyseMultiInput,
+    AnalyseMultiResult,
+    AnalyseMultiSummary,
+
     // Media types
     AnalyzeVoiceInput,
     VoiceAnalysisResult,
     TranscriptionResult,
     TranscriptionSegment,
+    AnalyzeVideoInput,
+    VideoAnalysisResult,
+    VideoSafetyFinding,
     AnalyzeImageInput,
     ImageAnalysisResult,
     VisionResult,

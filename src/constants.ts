@@ -102,6 +102,15 @@ export enum ToolName {
     HEALTHY_ACTION_PLAN = 'healthyActionPlan',
     INCIDENT_REPORT = 'incidentReport',
     POLICY_CONFIG = 'policyConfig',
+    DETECT_SOCIAL_ENGINEERING = 'detectSocialEngineering',
+    DETECT_APP_FRAUD = 'detectAppFraud',
+    DETECT_ROMANCE_SCAM = 'detectRomanceScam',
+    DETECT_MULE_RECRUITMENT = 'detectMuleRecruitment',
+    DETECT_GAMBLING_HARM = 'detectGamblingHarm',
+    DETECT_COERCIVE_CONTROL = 'detectCoerciveControl',
+    DETECT_VULNERABILITY_EXPLOITATION = 'detectVulnerabilityExploitation',
+    DETECT_RADICALISATION = 'detectRadicalisation',
+    ANALYZE_VIDEO = 'analyzeVideo',
 }
 
 // =============================================================================
@@ -182,3 +191,54 @@ export enum ErrorCode {
     UNSUPPORTED_TYPE = 'ANALYSIS_5002',
     NO_CONTENT = 'ANALYSIS_5003',
 }
+
+// =============================================================================
+// Language Support
+// =============================================================================
+
+/**
+ * Supported language codes for content analysis.
+ * English is stable; all others are beta.
+ */
+export enum Language {
+    EN = 'en',
+    ES = 'es',
+    PT = 'pt',
+    UK = 'uk',
+    SV = 'sv',
+    NO = 'no',
+    DA = 'da',
+    FI = 'fi',
+    DE = 'de',
+    FR = 'fr',
+}
+
+/**
+ * Language support maturity status
+ */
+export enum LanguageStatus {
+    STABLE = 'stable',
+    BETA = 'beta',
+}
+
+/**
+ * Detection endpoint identifiers for multi-endpoint analysis
+ */
+export enum Detection {
+    BULLYING = 'bullying',
+    GROOMING = 'grooming',
+    UNSAFE = 'unsafe',
+    SOCIAL_ENGINEERING = 'social-engineering',
+    APP_FRAUD = 'app-fraud',
+    ROMANCE_SCAM = 'romance-scam',
+    MULE_RECRUITMENT = 'mule-recruitment',
+    GAMBLING_HARM = 'gambling-harm',
+    COERCIVE_CONTROL = 'coercive-control',
+    VULNERABILITY_EXPLOITATION = 'vulnerability-exploitation',
+    RADICALISATION = 'radicalisation',
+}
+
+/**
+ * Supported language codes
+ */
+export const SUPPORTED_LANGUAGES = Object.values(Language);

@@ -70,6 +70,14 @@ import {
     UsageHistoryResult,
     UsageByToolResult,
     UsageMonthlyResult,
+    // Detection types
+    DetectionInput,
+    DetectionResult,
+    AnalyseMultiInput,
+    AnalyseMultiResult,
+    // Video types
+    AnalyzeVideoInput,
+    VideoAnalysisResult,
     // Voice stream types
     VoiceStreamConfig,
     VoiceStreamHandlers,
@@ -265,6 +273,20 @@ export class Tuteliq {
             return { platform: Tuteliq.resolvePlatform(context) };
         }
         return { ...context, platform: Tuteliq.resolvePlatform(context.platform) };
+    }
+
+    /**
+     * Build request body for unified detection endpoints
+     */
+    private buildDetectionBody(input: DetectionInput): Record<string, unknown> {
+        return {
+            text: input.content,
+            context: this.normalizeContext(input.context),
+            ...(input.includeEvidence && { include_evidence: true }),
+            ...(input.external_id && { external_id: input.external_id }),
+            ...(input.customer_id && { customer_id: input.customer_id }),
+            ...(input.metadata && { metadata: input.metadata }),
+        };
     }
 
     /**
@@ -1365,6 +1387,202 @@ export class Tuteliq {
         return withRetry(
             () => this.multipartRequest<ImageAnalysisResult>(
                 '/api/v1/safety/image',
+                formData
+            ),
+            { maxRetries: this.retries, initialDelay: this.retryDelay }
+        );
+    }
+
+    // =========================================================================
+    // Fraud Detection Methods
+    // =========================================================================
+
+    /**
+     * Detect social engineering tactics (pretexting, impersonation, urgency, authority exploitation)
+     */
+    async detectSocialEngineering(input: DetectionInput): Promise<DetectionResult> {
+        this.validateContent(input.content);
+        return this.requestWithRetry<DetectionResult>(
+            'POST', '/api/v1/fraud/social-engineering',
+            this.buildDetectionBody(input)
+        );
+    }
+
+    /**
+     * Detect app-based fraud (fake apps, malicious downloads, clone apps, fraudulent reviews)
+     */
+    async detectAppFraud(input: DetectionInput): Promise<DetectionResult> {
+        this.validateContent(input.content);
+        return this.requestWithRetry<DetectionResult>(
+            'POST', '/api/v1/fraud/app-fraud',
+            this.buildDetectionBody(input)
+        );
+    }
+
+    /**
+     * Detect romance scam patterns (love-bombing, financial requests, identity fabrication)
+     */
+    async detectRomanceScam(input: DetectionInput): Promise<DetectionResult> {
+        this.validateContent(input.content);
+        return this.requestWithRetry<DetectionResult>(
+            'POST', '/api/v1/fraud/romance-scam',
+            this.buildDetectionBody(input)
+        );
+    }
+
+    /**
+     * Detect money mule recruitment (easy money offers, account sharing, laundering language)
+     */
+    async detectMuleRecruitment(input: DetectionInput): Promise<DetectionResult> {
+        this.validateContent(input.content);
+        return this.requestWithRetry<DetectionResult>(
+            'POST', '/api/v1/fraud/mule-recruitment',
+            this.buildDetectionBody(input)
+        );
+    }
+
+    // =========================================================================
+    // Safety Extended Methods
+    // =========================================================================
+
+    /**
+     * Detect gambling harm (underage gambling, addiction patterns, predatory odds)
+     */
+    async detectGamblingHarm(input: DetectionInput): Promise<DetectionResult> {
+        this.validateContent(input.content);
+        return this.requestWithRetry<DetectionResult>(
+            'POST', '/api/v1/safety/gambling-harm',
+            this.buildDetectionBody(input)
+        );
+    }
+
+    /**
+     * Detect coercive control patterns (isolation, financial control, surveillance, threats)
+     */
+    async detectCoerciveControl(input: DetectionInput): Promise<DetectionResult> {
+        this.validateContent(input.content);
+        return this.requestWithRetry<DetectionResult>(
+            'POST', '/api/v1/safety/coercive-control',
+            this.buildDetectionBody(input)
+        );
+    }
+
+    /**
+     * Detect vulnerability exploitation with cross-endpoint vulnerability modifier
+     */
+    async detectVulnerabilityExploitation(input: DetectionInput): Promise<DetectionResult> {
+        this.validateContent(input.content);
+        return this.requestWithRetry<DetectionResult>(
+            'POST', '/api/v1/safety/vulnerability-exploitation',
+            this.buildDetectionBody(input)
+        );
+    }
+
+    /**
+     * Detect radicalisation indicators (extremist rhetoric, recruitment patterns, dehumanisation)
+     */
+    async detectRadicalisation(input: DetectionInput): Promise<DetectionResult> {
+        this.validateContent(input.content);
+        return this.requestWithRetry<DetectionResult>(
+            'POST', '/api/v1/safety/radicalisation',
+            this.buildDetectionBody(input)
+        );
+    }
+
+    // =========================================================================
+    // Multi-Endpoint Analysis
+    // =========================================================================
+
+    /**
+     * Run multiple detection endpoints on a single piece of content.
+     *
+     * When vulnerability-exploitation is included, its cross-endpoint modifier
+     * automatically adjusts severity scores across all other results.
+     *
+     * @example
+     * ```typescript
+     * const result = await tuteliq.analyseMulti({
+     *   content: "Suspicious message content",
+     *   detections: ['social-engineering', 'romance-scam', 'grooming'],
+     * })
+     *
+     * console.log('Highest risk:', result.summary.highest_risk)
+     * console.log('Modifier:', result.cross_endpoint_modifier)
+     * ```
+     */
+    async analyseMulti(input: AnalyseMultiInput): Promise<AnalyseMultiResult> {
+        this.validateContent(input.content);
+
+        if (!input.detections || input.detections.length === 0) {
+            throw new ValidationError('At least one detection endpoint is required');
+        }
+        if (input.detections.length > 10) {
+            throw new ValidationError('Maximum 10 detection endpoints per request');
+        }
+
+        return this.requestWithRetry<AnalyseMultiResult>(
+            'POST', '/api/v1/analyse/multi',
+            {
+                text: input.content,
+                endpoints: input.detections,
+                context: this.normalizeContext(input.context),
+                ...(input.includeEvidence && { options: { include_evidence: true } }),
+                ...(input.external_id && { external_id: input.external_id }),
+                ...(input.customer_id && { customer_id: input.customer_id }),
+                ...(input.metadata && { metadata: input.metadata }),
+            }
+        );
+    }
+
+    // =========================================================================
+    // Video Analysis
+    // =========================================================================
+
+    /**
+     * Analyze video content for safety concerns.
+     *
+     * Extracts frames and analyzes them for harmful visual content.
+     * Supported formats: mp4, webm, quicktime, x-msvideo.
+     *
+     * @example
+     * ```typescript
+     * import { readFileSync } from 'fs'
+     *
+     * const result = await tuteliq.analyzeVideo({
+     *   file: readFileSync('clip.mp4'),
+     *   filename: 'clip.mp4',
+     * })
+     *
+     * console.log('Frames analyzed:', result.frames_analyzed)
+     * console.log('Risk:', result.overall_severity)
+     * ```
+     */
+    async analyzeVideo(input: AnalyzeVideoInput): Promise<VideoAnalysisResult> {
+        if (!input.file) {
+            throw new ValidationError('Video file is required');
+        }
+        if (!input.filename) {
+            throw new ValidationError('Filename is required');
+        }
+
+        const formData = new FormData();
+
+        if (Buffer.isBuffer(input.file)) {
+            formData.append('file', new Blob([input.file as unknown as BlobPart]), input.filename);
+        } else {
+            formData.append('file', input.file, input.filename);
+        }
+
+        if (input.fileId) formData.append('file_id', input.fileId);
+        if (input.external_id) formData.append('external_id', input.external_id);
+        if (input.customer_id) formData.append('customer_id', input.customer_id);
+        if (input.ageGroup) formData.append('age_group', input.ageGroup);
+        formData.append('platform', Tuteliq.resolvePlatform(input.platform));
+        if (input.metadata) formData.append('metadata', JSON.stringify(input.metadata));
+
+        return withRetry(
+            () => this.multipartRequest<VideoAnalysisResult>(
+                '/api/v1/safety/video',
                 formData
             ),
             { maxRetries: this.retries, initialDelay: this.retryDelay }
