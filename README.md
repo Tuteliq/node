@@ -189,6 +189,13 @@ console.log(result.confidence)       // 0.89
 console.log(result.risk_score)       // 0.85
 console.log(result.rationale)        // "Multiple grooming indicators..."
 console.log(result.recommended_action) // 'immediate_intervention'
+
+// Per-message breakdown (optional, returned on conversation-aware endpoints)
+if (result.message_analysis) {
+  for (const m of result.message_analysis) {
+    console.log(`Message ${m.message_index}: risk=${m.risk_score}, flags=${m.flags}, summary=${m.summary}`)
+  }
+}
 ```
 
 #### `detectUnsafe(input)`

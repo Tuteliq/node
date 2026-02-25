@@ -3,6 +3,7 @@ import {
     GroomingRisk,
 } from '../constants.js';
 import { TrackingFields } from './index.js';
+import { MessageAnalysis } from './detection.js';
 
 // Re-export enums for convenience
 export { Severity, GroomingRisk };
@@ -96,6 +97,8 @@ export interface GroomingResult {
     risk_score: number;
     /** Recommended action to take */
     recommended_action: string;
+    /** Per-message analysis (conversation-aware endpoints) */
+    message_analysis?: MessageAnalysis[];
     /** Language code used for analysis */
     language?: string;
     /** Language support maturity */

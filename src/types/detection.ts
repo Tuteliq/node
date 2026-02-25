@@ -36,6 +36,20 @@ export interface DetectionCategory {
 }
 
 /**
+ * Per-message analysis from conversation-aware detection.
+ */
+export interface MessageAnalysis {
+    /** Index of the message in the input array */
+    message_index: number;
+    /** Risk score for this specific message (0-1) */
+    risk_score: number;
+    /** Flags identified in this message */
+    flags: string[];
+    /** Brief summary of the message analysis */
+    summary: string;
+}
+
+/**
  * Evidence excerpt from the analyzed content.
  */
 export interface DetectionEvidence {
@@ -85,6 +99,8 @@ export interface DetectionResult {
     recommended_action: string;
     /** Explanation of the analysis */
     rationale: string;
+    /** Per-message analysis (conversation-aware endpoints) */
+    message_analysis?: MessageAnalysis[];
     /** Language code used for analysis */
     language: string;
     /** Language support maturity */
