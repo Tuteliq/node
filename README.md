@@ -963,7 +963,7 @@ Rate limits depend on your subscription tier:
 | **Starter** | Free | 1,000 | 60/min | 3 Safety endpoints, 1 API key, Community support |
 | **Indie** | $29/mo | 10,000 | 300/min | All endpoints, 2 API keys, Dashboard analytics |
 | **Pro** | $99/mo | 50,000 | 1,000/min | 5 API keys, Webhooks, Custom policy, Priority latency |
-| **Business** | $349/mo | 200,000 | 5,000/min | 20 API keys, SSO, SLA 99.9%, HIPAA/SOC2 docs |
+| **Business** | $349/mo | 200,000 | 5,000/min | 20 API keys, SSO, SLA 99.9%, Compliance docs |
 | **Enterprise** | Custom | Unlimited | Custom | Dedicated infra, 24/7 support, SCIM, On-premise |
 
 **Credit Packs** (available to all tiers): 5K credits/$15 | 25K credits/$59 | 100K credits/$199
