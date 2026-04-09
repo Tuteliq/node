@@ -91,6 +91,16 @@ import {
     VerificationSessionResult,
     VerificationRetrieveResult,
     IdentityRetrieveResult,
+    // Synthetic content types
+    DetectSyntheticTextInput,
+    SyntheticTextResult,
+    DetectSyntheticImageInput,
+    SyntheticImageResult,
+    DetectSyntheticAudioInput,
+    SyntheticAudioResult,
+    DetectSyntheticVideoInput,
+    SyntheticVideoResult,
+    SyntheticProfile,
 } from './types/index.js';
 
 import {
@@ -1913,6 +1923,231 @@ export class Tuteliq {
         return this.requestWithRetry<UsageMonthlyResult>(
             'GET',
             '/api/v1/usage/monthly'
+        );
+    }
+
+    // =========================================================================
+    // Synthetic Content Detection
+    // =========================================================================
+
+    /**
+     * Detect AI-generated or synthetic text content.
+     *
+     * Analyzes text for LLM-generated content, synthetic identities,
+     * AI-enhanced grooming scripts, and more.
+     *
+     * @example
+     * ```typescript
+     * const result = await tuteliq.detectSyntheticText({
+     *   content: 'In conclusion, it is important to note...',
+     *   context: { ageGroup: '13-15' },
+     * })
+     *
+     * console.log(result.classification) // 'suspected_synthetic'
+     * console.log(result.confidence)     // 0.9
+     * ```
+     */
+    async detectSyntheticText(input: DetectSyntheticTextInput): Promise<SyntheticTextResult> {
+        this.validateContent(input.content);
+
+        const options: Record<string, unknown> = {};
+        if (input.supportThreshold) options.support_threshold = input.supportThreshold;
+
+        return this.requestWithRetry<SyntheticTextResult>(
+            'POST', '/api/v1/safety/synthetic-content',
+            {
+                text: input.content,
+                context: this.normalizeContext(input.context),
+                ...(input.external_id && { external_id: input.external_id }),
+                ...(input.customer_id && { customer_id: input.customer_id }),
+                ...(input.metadata && { metadata: input.metadata }),
+                ...(Object.keys(options).length > 0 && { options }),
+            }
+        );
+    }
+
+    /**
+     * Detect AI-generated or synthetic images using a 6-signal forensic pipeline.
+     *
+     * Runs vision AI, EXIF metadata, pixel statistics, C2PA Content Credentials,
+     * watermark detection, and perceptual hashing in parallel.
+     *
+     * @example
+     * ```typescript
+     * import { readFileSync } from 'fs'
+     *
+     * const result = await tuteliq.detectSyntheticImage({
+     *   file: readFileSync('photo.jpg'),
+     *   filename: 'photo.jpg',
+     * })
+     *
+     * console.log(result.classification)               // 'confirmed_synthetic'
+     * console.log(result.vision.artifacts)              // ['uniform skin texture...']
+     * console.log(result.metadata_analysis.has_camera)  // false
+     * console.log(result.provenance?.ai_tool)           // 'DALL-E 3'
+     * ```
+     */
+    async detectSyntheticImage(input: DetectSyntheticImageInput): Promise<SyntheticImageResult> {
+        if (!input.file) {
+            throw new ValidationError('Image file is required');
+        }
+        if (!input.filename) {
+            throw new ValidationError('Filename is required');
+        }
+
+        const formData = new FormData();
+
+        if (Buffer.isBuffer(input.file)) {
+            formData.append('file', new Blob([input.file as unknown as BlobPart]), input.filename);
+        } else {
+            formData.append('file', input.file, input.filename);
+        }
+
+        if (input.ageGroup) formData.append('age_group', input.ageGroup);
+        if (input.language) formData.append('language', input.language);
+        if (input.external_id) formData.append('external_id', input.external_id);
+        if (input.customer_id) formData.append('customer_id', input.customer_id);
+        formData.append('platform', Tuteliq.resolvePlatform(input.platform));
+        if (input.metadata) formData.append('metadata', JSON.stringify(input.metadata));
+
+        return withRetry(
+            () => this.multipartRequest<SyntheticImageResult>(
+                '/api/v1/safety/synthetic-content/image',
+                formData
+            ),
+            { maxRetries: this.retries, initialDelay: this.retryDelay }
+        );
+    }
+
+    /**
+     * Detect AI-generated or cloned voice audio with spectral forensics.
+     *
+     * Runs transcription and spectral analysis (mel spectrogram + audio statistics)
+     * in parallel. Even speech-free audio can be flagged via spectral patterns.
+     *
+     * @example
+     * ```typescript
+     * import { readFileSync } from 'fs'
+     *
+     * const result = await tuteliq.detectSyntheticAudio({
+     *   file: readFileSync('voice.mp3'),
+     *   filename: 'voice.mp3',
+     * })
+     *
+     * console.log(result.classification)           // 'suspected_synthetic'
+     * console.log(result.audio_stats?.flat_factor)  // 0.002
+     * console.log(result.spectral_signals)          // ['low_dynamic_range: ...']
+     * ```
+     */
+    async detectSyntheticAudio(input: DetectSyntheticAudioInput): Promise<SyntheticAudioResult> {
+        if (!input.file) {
+            throw new ValidationError('Audio file is required');
+        }
+        if (!input.filename) {
+            throw new ValidationError('Filename is required');
+        }
+
+        const formData = new FormData();
+
+        if (Buffer.isBuffer(input.file)) {
+            formData.append('file', new Blob([input.file as unknown as BlobPart]), input.filename);
+        } else {
+            formData.append('file', input.file, input.filename);
+        }
+
+        if (input.ageGroup) formData.append('age_group', input.ageGroup);
+        if (input.language) formData.append('language', input.language);
+        if (input.external_id) formData.append('external_id', input.external_id);
+        if (input.customer_id) formData.append('customer_id', input.customer_id);
+        formData.append('platform', Tuteliq.resolvePlatform(input.platform));
+        if (input.metadata) formData.append('metadata', JSON.stringify(input.metadata));
+
+        return withRetry(
+            () => this.multipartRequest<SyntheticAudioResult>(
+                '/api/v1/safety/synthetic-content/audio',
+                formData
+            ),
+            { maxRetries: this.retries, initialDelay: this.retryDelay }
+        );
+    }
+
+    /**
+     * Detect deepfakes and AI-generated video with temporal and lip-sync analysis.
+     *
+     * Runs per-frame vision, temporal face consistency, lip-sync correlation,
+     * spectral audio analysis, and transcription — all in parallel.
+     *
+     * @example
+     * ```typescript
+     * import { readFileSync } from 'fs'
+     *
+     * const result = await tuteliq.detectSyntheticVideo({
+     *   file: readFileSync('clip.mp4'),
+     *   filename: 'clip.mp4',
+     *   maxFrames: 10,
+     * })
+     *
+     * console.log(result.classification)                          // 'suspected_synthetic'
+     * console.log(result.temporal_consistency?.identity_consistency_score) // 0.42
+     * console.log(result.lip_sync?.correlation)                   // 0.21
+     * ```
+     */
+    async detectSyntheticVideo(input: DetectSyntheticVideoInput): Promise<SyntheticVideoResult> {
+        if (!input.file) {
+            throw new ValidationError('Video file is required');
+        }
+        if (!input.filename) {
+            throw new ValidationError('Filename is required');
+        }
+
+        const formData = new FormData();
+
+        if (Buffer.isBuffer(input.file)) {
+            formData.append('file', new Blob([input.file as unknown as BlobPart]), input.filename);
+        } else {
+            formData.append('file', input.file, input.filename);
+        }
+
+        if (input.maxFrames) formData.append('max_frames', String(input.maxFrames));
+        if (input.ageGroup) formData.append('age_group', input.ageGroup);
+        if (input.language) formData.append('language', input.language);
+        if (input.external_id) formData.append('external_id', input.external_id);
+        if (input.customer_id) formData.append('customer_id', input.customer_id);
+        formData.append('platform', Tuteliq.resolvePlatform(input.platform));
+        if (input.metadata) formData.append('metadata', JSON.stringify(input.metadata));
+
+        return withRetry(
+            () => this.multipartRequest<SyntheticVideoResult>(
+                '/api/v1/safety/synthetic-content/video',
+                formData
+            ),
+            { maxRetries: this.retries, initialDelay: this.retryDelay }
+        );
+    }
+
+    /**
+     * Get the synthetic content profile for a customer.
+     *
+     * Returns a 30-day rolling window of synthetic content detection results
+     * with trend analysis and category distribution.
+     *
+     * @example
+     * ```typescript
+     * const profile = await tuteliq.getSyntheticProfile('user_456')
+     *
+     * console.log(profile.account_synthetic_score)  // 0.34
+     * console.log(profile.trend)                    // 'increasing'
+     * console.log(profile.synthetic_count)          // 12
+     * ```
+     */
+    async getSyntheticProfile(customerId: string): Promise<SyntheticProfile> {
+        if (!customerId) {
+            throw new ValidationError('Customer ID is required');
+        }
+
+        return this.requestWithRetry<SyntheticProfile>(
+            'GET',
+            `/api/v1/safety/synthetic-content/profile/${encodeURIComponent(customerId)}`
         );
     }
 

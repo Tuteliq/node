@@ -52,8 +52,13 @@ Tuteliq provides AI-powered content analysis to help protect children and vulner
 - **Emotional State Analysis** — Understand emotional signals and concerning trends
 - **Action Guidance** — Generate age-appropriate response recommendations
 - **Incident Reports** — Create professional summaries for review
+- **Synthetic Content Detection** — Multi-signal forensic detection of AI-generated text, images, audio, and video
+- **Synthetic Image Forensics** — 6-signal pipeline: vision AI, EXIF metadata, pixel statistics, C2PA Content Credentials, watermark detection, perceptual hashing
+- **Synthetic Audio Forensics** — Transcript analysis + mel spectrogram vision + quantitative audio statistics
+- **Synthetic Video Forensics** — Temporal face consistency, lip-sync correlation, per-frame vision, spectral audio
+- **Synthetic Profiling** — Account-level 30-day rolling window with trend detection
 - **Age Verification** — Session-based age verification with document capture and liveness detection
-- **Identity Verification** — Session-based identity verification with face matching and document authentication
+- **Identity Verification** — Session-based identity verification with face matching, document authentication, MRZ validation, barcode reading, and 45-country document number validation
 
 ### Why Tuteliq?
 
@@ -591,6 +596,171 @@ console.log('Full transcript:', summary.transcript)
 
 ---
 
+### Synthetic Content Detection
+
+Detect AI-generated text, images, audio, and video with multi-signal forensic analysis. Designed for child safety — detects synthetic CSAM, deepfakes, and AI-generated impersonation content.
+
+#### `detectSyntheticText(input)`
+
+Analyzes text for AI-generation indicators. Uses 10 child-safety-focused categories including synthetic CSAM narratives, deepfake impersonation, and AI-generated grooming scripts.
+
+```typescript
+const result = await tuteliq.detectSyntheticText({
+  content: "Text to analyze for AI generation indicators",
+  context: { ageGroup: '11-13' },
+})
+
+console.log(result.detected)          // true
+console.log(result.classification)    // 'confirmed_synthetic' | 'suspected_synthetic' | 'unknown' | 'confirmed_authentic'
+console.log(result.confidence)        // 0.87
+console.log(result.risk_score)        // 0.75
+console.log(result.level)             // 'high'
+console.log(result.categories)        // [{ tag: 'SYNTHETIC_CSAM', label: '...', confidence: 0.9 }]
+console.log(result.rationale)         // "AI-generated text with..."
+console.log(result.recommended_action) // 'immediate_review'
+```
+
+#### `detectSyntheticImage(input)`
+
+Multi-signal forensic image analysis using 6 parallel engines: vision AI, EXIF metadata, pixel statistics, C2PA Content Credentials, watermark detection, and perceptual hashing.
+
+```typescript
+import { readFileSync } from 'fs'
+
+const result = await tuteliq.detectSyntheticImage({
+  file: readFileSync('./suspect-image.jpg'),
+  filename: 'suspect-image.jpg',
+  ageGroup: '13-15',
+})
+
+// Classification
+console.log(result.classification)              // 'confirmed_synthetic'
+console.log(result.confidence)                  // 0.94
+console.log(result.level)                       // 'critical'
+
+// Vision AI forensic analysis
+console.log(result.vision.is_likely_synthetic)  // true
+console.log(result.vision.artifacts)            // ['smooth_skin_texture', 'inconsistent_lighting']
+console.log(result.vision.face_analysis)        // "Uncanny valley facial features..."
+
+// EXIF/metadata analysis
+console.log(result.metadata_analysis.has_exif)             // false
+console.log(result.metadata_analysis.ai_generator_detected) // true
+console.log(result.metadata_analysis.ai_generator)         // 'Midjourney'
+console.log(result.metadata_analysis.suspicious_absence)   // true
+
+// C2PA Content Credentials (when present)
+if (result.provenance) {
+  console.log(result.provenance.has_c2pa)         // true
+  console.log(result.provenance.is_ai_generated)  // true
+  console.log(result.provenance.ai_tool)          // 'DALL-E 3'
+}
+
+// Multi-signal ensemble
+console.log(result.forensic_signals.signal_count)              // 14
+console.log(result.forensic_signals.combined_confidence_boost) // 0.25
+
+// Perceptual hash (for known-image matching)
+console.log(result.perceptual_hash)            // 'a3f5c7d901e2b4f8'
+
+// Known synthetic match (if pHash matches a known AI-generated image)
+if (result.known_synthetic_match) {
+  console.log(result.known_synthetic_match.distance)  // 3
+  console.log(result.known_synthetic_match.category)  // 'SYNTHETIC_CSAM'
+}
+```
+
+Supported formats: png, jpg, jpeg, gif, webp (max 10MB).
+
+#### `detectSyntheticAudio(input)`
+
+Dual-signal audio forensics: transcript analysis + mel spectrogram vision + quantitative audio statistics. Detects AI-generated voice clones, TTS output, and synthetic speech.
+
+```typescript
+import { readFileSync } from 'fs'
+
+const result = await tuteliq.detectSyntheticAudio({
+  file: readFileSync('./voice-message.mp3'),
+  filename: 'voice-message.mp3',
+})
+
+console.log(result.classification)     // 'suspected_synthetic'
+console.log(result.confidence)         // 0.78
+
+// Transcription
+console.log(result.transcription?.text)  // "Transcribed audio content..."
+
+// Quantitative audio stats
+if (result.audio_stats) {
+  console.log(result.audio_stats.dynamic_range)   // 12.5  (dB — low = suspicious)
+  console.log(result.audio_stats.silence_ratio)    // 0.02  (low = no natural pauses)
+  console.log(result.audio_stats.flat_factor)      // 0.8   (high = uniform/synthetic)
+}
+
+// Spectral signals from mel spectrogram analysis
+console.log(result.spectral_signals)  // ['low_dynamic_range', 'missing_breath_noise', 'uniform_pitch']
+```
+
+Supported formats: mp3, wav, m4a, ogg, flac, webm, mp4 (max 25MB).
+
+#### `detectSyntheticVideo(input)`
+
+5-track video analysis: per-frame vision forensics, temporal face consistency, lip-sync correlation, spectral audio analysis, and transcript detection.
+
+```typescript
+import { readFileSync } from 'fs'
+
+const result = await tuteliq.detectSyntheticVideo({
+  file: readFileSync('./suspect-video.mp4'),
+  filename: 'suspect-video.mp4',
+  maxFrames: 10,  // Extract up to 10 frames (default: 6, max: 20)
+})
+
+console.log(result.classification)     // 'confirmed_synthetic'
+console.log(result.confidence)         // 0.91
+console.log(result.video.duration_seconds)   // 15.2
+console.log(result.video.frames_analyzed)    // 10
+console.log(result.video.has_audio)          // true
+
+// Temporal face consistency (detects face-swapped deepfakes)
+if (result.temporal_consistency) {
+  console.log(result.temporal_consistency.identity_consistency_score) // 0.4 (low = face drift)
+  console.log(result.temporal_consistency.landmark_stability_score)   // 0.3 (low = jitter)
+  console.log(result.temporal_consistency.temporal_consistency_score) // 0.35
+  console.log(result.temporal_consistency.anomalous_frame_pairs)     // [{ frame_a: 3, frame_b: 4, distance: 0.7 }]
+  console.log(result.temporal_consistency.signals)                   // ['face_identity_drift', 'landmark_jitter']
+}
+
+// Lip-sync correlation (detects dubbed deepfakes)
+if (result.lip_sync) {
+  console.log(result.lip_sync.correlation)                 // 0.15 (low = poor sync)
+  console.log(result.lip_sync.has_silent_mouth_movement)   // true
+  console.log(result.lip_sync.has_voice_without_movement)  // false
+  console.log(result.lip_sync.signals)                     // ['poor_lip_sync', 'silent_mouth_movement']
+}
+```
+
+Supported formats: mp4, webm, avi, mov (max 100MB).
+
+#### `getSyntheticProfile(customerId)`
+
+Retrieve account-level synthetic content profiling — a 30-day rolling window of all synthetic detections for a given customer.
+
+```typescript
+const profile = await tuteliq.getSyntheticProfile('cust_xyz789')
+
+console.log(profile.total_items)                // 50
+console.log(profile.synthetic_count)            // 42
+console.log(profile.authentic_count)            // 6
+console.log(profile.account_synthetic_score)    // 0.84
+console.log(profile.trend)                      // 'increasing' | 'stable' | 'decreasing'
+console.log(profile.category_distribution)      // { DEEPFAKE_IMPERSONATION: 15, SYNTHETIC_CSAM: 3, ... }
+console.log(profile.avg_confidence)             // 0.82
+console.log(profile.window_days)                // 30
+```
+
+---
+
 ### Emotional Analysis
 
 #### `analyzeEmotions(input)`
@@ -708,7 +878,7 @@ const session = await tuteliq.createVerificationSession({
 
 #### `getVerificationSession(sessionId)`
 
-Polls the status of a verification session. When `status` is `completed`, the result is available in the `result` field.
+Polls the status of a verification session. When `status` is `completed`, the result contains full document intelligence — MRZ validation, barcode reading, document authenticity, face matching, and liveness.
 
 ```typescript
 import { VerificationSessionStatus } from '@tuteliq/sdk'
@@ -719,19 +889,51 @@ console.log(session.status)  // VerificationSessionStatus.COMPLETED
 console.log(session.mode)    // VerificationMode.AGE
 
 if (session.status === VerificationSessionStatus.COMPLETED && session.result) {
-  // Age verification result (when mode is AGE)
+  // Core result
+  console.log(session.result.status)            // 'verified' | 'failed' | 'needs_review'
+  console.log(session.result.age)               // 22
+  console.log(session.result.date_of_birth)     // '1990-01-15'
   console.log(session.result.is_minor)          // false
-  console.log(session.result.age_bracket)       // '18-25'
-  console.log(session.result.face_match)        // { matched: true, distance: 0.3, confidence: 0.95 }
-  console.log(session.result.liveness)          // { valid: true }
   console.log(session.result.failure_reasons)   // []
-  console.log(session.result.credits_used)      // 10
 
-  // Identity verification result (when mode is IDENTITY) also includes:
-  // session.result.full_name      // 'John Doe'
-  // session.result.date_of_birth  // '1990-01-15'
-  // session.result.document_type  // 'passport'
-  // session.result.country_code   // 'US'
+  // Document extraction and validation
+  console.log(session.result.document.ocr_confidence)       // 92
+  console.log(session.result.document.name_extracted)        // 'John Doe'
+  console.log(session.result.document.document_number)       // 'AB1234567'
+  console.log(session.result.document.document_number_valid) // true (45-country validation)
+  console.log(session.result.document.country_code)          // 'US'
+  console.log(session.result.document.expired)               // false
+
+  // MRZ validation (passports, ID cards with MRZ)
+  if (session.result.document.mrz_valid !== null) {
+    console.log(session.result.document.mrz_valid)              // true
+    console.log(session.result.document.mrz_fields?.surname)    // 'DOE'
+    console.log(session.result.document.mrz_fields?.given_names) // 'JOHN'
+    console.log(session.result.document.mrz_fields?.nationality) // 'USA'
+  }
+
+  // PDF417 barcode (US/CA driver's licenses)
+  if (session.result.barcode) {
+    console.log(session.result.barcode.format)              // 'PDF417'
+    console.log(session.result.barcode.has_aamva)           // true
+    console.log(session.result.barcode.fields?.first_name)  // 'JOHN'
+    console.log(session.result.barcode.fields?.state)       // 'CA'
+  }
+
+  // AI-powered document authenticity
+  if (session.result.document_authenticity) {
+    console.log(session.result.document_authenticity.is_authentic)              // true
+    console.log(session.result.document_authenticity.confidence)                // 0.92
+    console.log(session.result.document_authenticity.security_features_visible) // ['hologram', 'microprint']
+    console.log(session.result.document_authenticity.anomalies)                // []
+    console.log(session.result.document_authenticity.recapture_detected)       // false
+  }
+
+  // Face matching
+  console.log(session.result.face_match)  // { matched: true, distance: 0.3, confidence: 0.95 }
+
+  // Liveness
+  console.log(session.result.liveness)    // { valid: true }
 }
 ```
 
@@ -1106,6 +1308,11 @@ Different endpoints consume different amounts of credits based on complexity:
 | `analyzeImage()` | 3 | Vision + OCR + analysis |
 | `analyzeVideo()` | 10 | Key frame extraction + analysis |
 | `analyzeDocument()` | Dynamic | `max(3, pages × endpoints)` per document |
+| `detectSyntheticText()` | 2 | LLM-based synthetic text detection |
+| `detectSyntheticImage()` | 5 | 6-signal forensic pipeline |
+| `detectSyntheticAudio()` | 4-7 | Transcription + spectral analysis |
+| `detectSyntheticVideo()` | Dynamic | `2 + 3/frame + 2` (audio analysis) |
+| `getSyntheticProfile()` | 0 | Read-only, no cost |
 | `createVerificationSession()` (age) | 10 | Charged on completion |
 | `createVerificationSession()` (identity) | 15 | Charged on completion |
 
@@ -1349,12 +1556,35 @@ import type {
   CreateVerificationSessionInput,
   VerificationSession,
   VerificationSessionResult,
-  AgeVerificationResult,
-  IdentityVerificationResult,
-  VerificationRetrieveResult,
-  IdentityRetrieveResult,
+  VerificationResult,
+  DocumentDetails,
+  MrzFields,
+  BarcodeResult,
+  DocumentAuthenticityResult,
   FaceMatchResult,
   LivenessResult,
+  VerificationRetrieveResult,
+  IdentityRetrieveResult,
+
+  // Synthetic Content Detection
+  DetectSyntheticTextInput,
+  SyntheticTextResult,
+  DetectSyntheticImageInput,
+  SyntheticImageResult,
+  SyntheticVisionResult,
+  MetadataAnalysis,
+  ProvenanceResult,
+  ForensicSignals,
+  KnownSyntheticMatch,
+  DetectSyntheticAudioInput,
+  SyntheticAudioResult,
+  AudioStats,
+  DetectSyntheticVideoInput,
+  SyntheticVideoResult,
+  TemporalConsistency,
+  LipSyncResult,
+  SyntheticProfile,
+  SyntheticClassification,
 
   // Utilities
   Usage,
