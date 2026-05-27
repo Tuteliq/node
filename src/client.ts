@@ -581,6 +581,12 @@ export class Tuteliq {
     /**
      * Detect bullying in content
      *
+     * Branching guidance: the top-level `is_bullying` boolean fires whenever
+     * the model observes ANY signal — including low-severity monitor-only
+     * cases. For production branching prefer `result.normalized.actionable`
+     * (true iff level is medium / high / critical) or `result.recommended_action`
+     * (`flag_for_moderator` / `immediate_intervention`).
+     *
      * @example
      * ```typescript
      * const result = await tuteliq.detectBullying({
@@ -588,8 +594,9 @@ export class Tuteliq {
      *   context: 'chat'
      * })
      *
-     * if (result.is_bullying && result.severity === 'high') {
-     *   console.log('High severity bullying detected')
+     * // Recommended: branch on normalized.actionable or recommended_action
+     * if (result.normalized?.actionable) {
+     *   console.log('Bullying requires moderator action')
      *   console.log('Rationale:', result.rationale)
      * }
      * ```
@@ -617,6 +624,12 @@ export class Tuteliq {
     /**
      * Detect grooming patterns in a conversation
      *
+     * Branching guidance: `grooming_risk: "low"` is a monitor-only signal — do
+     * not treat it as actionable. For production branching prefer
+     * `result.normalized.actionable` (true iff level is medium / high / critical)
+     * or `result.recommended_action` (`flag_for_moderator` /
+     * `immediate_intervention`).
+     *
      * @example
      * ```typescript
      * const result = await tuteliq.detectGrooming({
@@ -627,7 +640,8 @@ export class Tuteliq {
      *   childAge: 12
      * })
      *
-     * if (result.grooming_risk === 'high') {
+     * // Recommended: branch on normalized.actionable or recommended_action
+     * if (result.normalized?.actionable) {
      *   console.log('Flags:', result.flags)
      * }
      * ```
@@ -661,13 +675,20 @@ export class Tuteliq {
     /**
      * Detect unsafe content (self-harm, violence, hate speech, etc.)
      *
+     * Branching guidance: the top-level `unsafe` boolean fires whenever the
+     * model observes ANY signal — including low-severity monitor-only cases
+     * (e.g. "today was the worst" / venting). For production branching prefer
+     * `result.normalized.actionable` (true iff level is medium / high /
+     * critical) or `result.recommended_action`.
+     *
      * @example
      * ```typescript
      * const result = await tuteliq.detectUnsafe({
      *   content: "I want to hurt myself"
      * })
      *
-     * if (result.unsafe && result.categories.includes('self_harm')) {
+     * // Recommended: branch on normalized.actionable or recommended_action
+     * if (result.normalized?.actionable && result.categories.includes('self_harm')) {
      *   console.log('Show crisis resources')
      * }
      * ```
