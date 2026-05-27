@@ -101,6 +101,14 @@ import {
     DetectSyntheticVideoInput,
     SyntheticVideoResult,
     SyntheticProfile,
+    // Customer-managed encryption keys
+    RegisterEncryptionKeyInput,
+    CustomerEncryptionKey,
+    RevokeEncryptionKeyResult,
+    // EU AI Act audit receipts + moderator review
+    AuditReceipt,
+    ReviewIncidentInput,
+    ReviewIncidentResult,
 } from './types/index.js';
 
 import {
@@ -425,32 +433,34 @@ export class Tuteliq {
         const details = body.error?.details;
         const suggestion = body.error?.suggestion;
         const links = body.error?.links;
+        // request_id is returned by the API on error responses (snake_case)
+        const requestId = (body.error as { request_id?: string } | undefined)?.request_id;
 
         switch (status) {
             case 400:
-                throw new ValidationError(message, details, { code, suggestion, links });
+                throw new ValidationError(message, details, { code, suggestion, links, requestId });
             case 401:
-                throw new AuthenticationError(message, { code, suggestion, links });
+                throw new AuthenticationError(message, { code, suggestion, links, requestId });
             case 403:
-                throw new TierAccessError(message, { code, suggestion, links });
+                throw new TierAccessError(message, { code, suggestion, links, requestId, details: details as never });
             case 404:
-                throw new NotFoundError(message, { code, suggestion, links });
+                throw new NotFoundError(message, { code, suggestion, links, requestId });
             case 429: {
                 const retryAfter = headers.get('retry-after');
                 if (code === 'RATE_2003' || code === 'QUOTA_EXCEEDED') {
-                    throw new QuotaExceededError(message, { code, suggestion, links });
+                    throw new QuotaExceededError(message, { code, suggestion, links, requestId });
                 }
                 throw new RateLimitError(
                     message,
                     retryAfter ? parseInt(retryAfter, 10) : undefined,
-                    { code, suggestion, links }
+                    { code, suggestion, links, requestId }
                 );
             }
             default:
                 if (status >= 500) {
-                    throw new ServerError(message, status, { code, suggestion, links });
+                    throw new ServerError(message, status, { code, suggestion, links, requestId });
                 }
-                throw new TuteliqError(message, status, details, { code, suggestion, links });
+                throw new TuteliqError(message, status, details, { code, suggestion, links, requestId });
         }
     }
 
@@ -1529,6 +1539,35 @@ export class Tuteliq {
         );
     }
 
+    /**
+     * Detect linguistic distress-signal patterns (pre-vulnerability indicators).
+     *
+     * Frames the analysis as content classification (loneliness expressions,
+     * isolation language, hopelessness phrases, trust-seeking openers) rather
+     * than inner-state emotion inference — important under EU AI Act
+     * Art 5(1)(f). Replaces the deprecated `detectEmotionalDistress`.
+     */
+    async detectDistressSignals(input: DetectionInput): Promise<DetectionResult> {
+        this.validateContent(input.content);
+        return this.requestWithRetry<DetectionResult>(
+            'POST', '/api/v1/safety/distress-signals',
+            this.buildDetectionBody(input)
+        );
+    }
+
+    /**
+     * Detect tech-facilitated gender-based violence (TFGBV).
+     * Covers image-based abuse, cyber stalking, online harassment, doxing,
+     * outing, post-separation abuse, digital coercion, and sexualised deepfakes.
+     */
+    async detectTFGBV(input: DetectionInput): Promise<DetectionResult> {
+        this.validateContent(input.content);
+        return this.requestWithRetry<DetectionResult>(
+            'POST', '/api/v1/safety/tfgbv',
+            this.buildDetectionBody(input)
+        );
+    }
+
     // =========================================================================
     // Multi-Endpoint Analysis
     // =========================================================================
@@ -2328,6 +2367,106 @@ export class Tuteliq {
         handlers?: VoiceStreamHandlers,
     ): VoiceStreamSession {
         return createVoiceStream(this.apiKey, config, handlers);
+    }
+
+    // =========================================================================
+    // End-to-end encryption keys (privacy-first incident encryption)
+    // =========================================================================
+
+    /**
+     * Register (or rotate) the RSA public key Tuteliq uses to encrypt your
+     * incident records. After registration, new incident rationale,
+     * visual_description, source_data, and metadata fields are wrapped with a
+     * per-record AES key, which is itself encrypted with this RSA key
+     * (hybrid: RSA-OAEP + AES-256-GCM). Tuteliq cannot decrypt — only the
+     * holder of the matching private key can.
+     *
+     * The private key is YOUR responsibility — Tuteliq cannot recover
+     * incidents encrypted under a lost key.
+     */
+    async registerEncryptionKey(
+        input: RegisterEncryptionKeyInput,
+    ): Promise<CustomerEncryptionKey> {
+        return this.requestWithRetry<CustomerEncryptionKey>(
+            'POST',
+            '/api/v1/account/encryption-key',
+            input,
+        );
+    }
+
+    /**
+     * Fetch the currently-registered public key. Returns `null` when no key
+     * is registered (incidents fall back to server-side encryption with a
+     * Tuteliq-held key).
+     */
+    async getEncryptionKey(): Promise<CustomerEncryptionKey | null> {
+        try {
+            return await this.requestWithRetry<CustomerEncryptionKey>(
+                'GET',
+                '/api/v1/account/encryption-key',
+            );
+        } catch (err) {
+            if (err instanceof NotFoundError) return null;
+            throw err;
+        }
+    }
+
+    /**
+     * Revoke the currently-registered public key. New incidents fall back to
+     * server-side encryption from this point. Existing incidents stay
+     * encrypted under the prior key and remain readable only with that key.
+     */
+    async revokeEncryptionKey(): Promise<RevokeEncryptionKeyResult> {
+        return this.requestWithRetry<RevokeEncryptionKeyResult>(
+            'DELETE',
+            '/api/v1/account/encryption-key',
+        );
+    }
+
+    // =========================================================================
+    // EU AI Act Art 12 audit receipts
+    // =========================================================================
+
+    /**
+     * Fetch the signed audit receipt for a past inference. Only the deployer
+     * that produced the receipt can fetch it (API-key fingerprint match
+     * enforced; mismatched requests get a 404 to avoid existence-leaks).
+     */
+    async getAuditReceipt(requestId: string): Promise<AuditReceipt> {
+        if (!requestId) {
+            throw new ValidationError('request_id is required');
+        }
+        return this.requestWithRetry<AuditReceipt>(
+            'GET',
+            `/api/v1/audit/receipts/${encodeURIComponent(requestId)}`,
+        );
+    }
+
+    // =========================================================================
+    // EU AI Act Art 14 human oversight
+    // =========================================================================
+
+    /**
+     * Submit a moderator review of a past incident. Persists the override on
+     * the incident document (preserving the original classification on first
+     * override) and emits a separate signed Art 12 audit receipt linked to
+     * the original via `target_incident_id`.
+     */
+    async reviewIncident(
+        incidentId: string,
+        input: ReviewIncidentInput,
+    ): Promise<ReviewIncidentResult> {
+        if (!incidentId) {
+            throw new ValidationError('incident_id is required');
+        }
+        if (input.action === 'reclassify' && !input.new_risk_category) {
+            throw new ValidationError('action="reclassify" requires new_risk_category');
+        }
+        return this.requestWithRetry<ReviewIncidentResult>(
+            'POST',
+            `/api/v1/incidents/${encodeURIComponent(incidentId)}/review`,
+            input,
+        );
     }
 }
 

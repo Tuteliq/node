@@ -34,6 +34,7 @@ export {
     QuotaExceededError,
     TierAccessError,
 } from './errors.js';
+export type { ErrorMeta, SubscriptionErrorDetails } from './errors.js';
 
 // Type exports
 export type {
@@ -221,6 +222,23 @@ export type {
     TemporalConsistency,
     LipSyncResult,
     SyntheticProfile,
+
+    // Customer-managed end-to-end encryption (#35)
+    CustomerKeyAlgorithm,
+    RegisterEncryptionKeyInput,
+    CustomerEncryptionKey,
+    RevokeEncryptionKeyResult,
+
+    // EU AI Act audit receipts (#33) + moderator review (#24)
+    AuditReceiptAlgorithm,
+    RetentionClass,
+    AuditReceiptSignature,
+    AuditReceiptPayload,
+    AuditReceipt,
+    ModeratorAction,
+    ModeratorReasonCode,
+    ReviewIncidentInput,
+    ReviewIncidentResult,
 
     // Legacy type aliases (backwards compatibility)
     DetectBullyingRequest,

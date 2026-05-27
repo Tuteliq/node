@@ -12,6 +12,8 @@ export * from './voice-stream.js';
 export * from './detection.js';
 export * from './verification.js';
 export * from './synthetic.js';
+export * from './encryption.js';
+export * from './audit.js';
 
 // =============================================================================
 // Common Types
