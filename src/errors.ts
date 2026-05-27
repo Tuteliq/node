@@ -8,6 +8,8 @@ export interface ErrorMeta {
     suggestion?: string;
     /** Helpful links (e.g., { upgrade: "https://tuteliq.ai/pricing" }) */
     links?: Record<string, string>;
+    /** Server-assigned request ID for support/tracing */
+    requestId?: string;
 }
 
 /**
@@ -20,6 +22,8 @@ export class TuteliqError extends Error {
     public readonly suggestion?: string;
     /** Helpful links */
     public readonly links?: Record<string, string>;
+    /** Server-assigned request ID for support/tracing */
+    public readonly requestId?: string;
 
     constructor(
         message: string,
@@ -32,6 +36,7 @@ export class TuteliqError extends Error {
         this.code = meta?.code;
         this.suggestion = meta?.suggestion;
         this.links = meta?.links;
+        this.requestId = meta?.requestId;
         Object.setPrototypeOf(this, TuteliqError.prototype);
     }
 }
@@ -139,15 +144,40 @@ export class QuotaExceededError extends TuteliqError {
 }
 
 /**
- * Error thrown when trying to access a restricted endpoint
+ * Diagnostic details returned when a subscription-related 403 is raised.
+ * Populated from `error.details` on the API response.
+ */
+export interface SubscriptionErrorDetails {
+    /** User ID on the Tuteliq platform — share with support to reconcile accounts */
+    user_id?: string | null;
+    /** Plan identifier, e.g. "indie", "pro", "business" */
+    plan_id?: string | null;
+    /** Human-readable plan name, e.g. "Indie" */
+    plan_name?: string | null;
+    /** Stripe subscription status, e.g. "active", "past_due", "canceled" */
+    subscription_status?: string | null;
+    /** ISO timestamp of the billing period end that was enforced */
+    expired_at?: string | null;
+}
+
+/**
+ * Error thrown when trying to access a restricted endpoint, or when a
+ * subscription is expired/inactive. When the API returns SUB_7003 or
+ * SUB_7002, `details` contains diagnostic fields (plan, subscription
+ * status, expired_at) and `requestId` can be shared with support.
  */
 export class TierAccessError extends TuteliqError {
     constructor(
         message = 'This endpoint is not available on your current plan.',
-        meta?: ErrorMeta
+        meta?: ErrorMeta & { details?: SubscriptionErrorDetails }
     ) {
-        super(message, 403, undefined, meta);
+        super(message, 403, meta?.details, meta);
         this.name = 'TierAccessError';
         Object.setPrototypeOf(this, TierAccessError.prototype);
+    }
+
+    /** Strongly-typed accessor for subscription diagnostic details. */
+    get subscriptionDetails(): SubscriptionErrorDetails | undefined {
+        return this.details as SubscriptionErrorDetails | undefined;
     }
 }
