@@ -87,6 +87,17 @@ export interface IncidentDetail extends IncidentSummaryRow {
     recommended_actions?: string[];
     emotional_indicators?: string[];
     review?: Record<string, unknown> | null;
+    /**
+     * Per-message trajectory for multi-turn endpoints (grooming, etc).
+     * Index + risk_score + tactic flags per message. The dashboard widget
+     * renders this as a line chart showing the conversation's risk ramp.
+     * Null for single-turn incidents.
+     */
+    message_analysis?: Array<{
+        message_index: number;
+        risk_score: number;
+        flags: string[];
+    }> | null;
 }
 
 export interface IncidentsOverviewInput {
