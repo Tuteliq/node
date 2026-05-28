@@ -35,6 +35,18 @@ export interface DetectBullyingInput extends TrackingFields {
     context?: ContextInput;
     /** Minimum severity to show crisis support resources (default: 'high'). Critical always shows. */
     supportThreshold?: 'low' | 'medium' | 'high' | 'critical';
+    /**
+     * Opaque signed token returned by a prior /bullying call. Carries derived
+     * conversation-trajectory state (category counts, severity history) into
+     * the next call without storing any user content server-side. Pass back
+     * verbatim to maintain multi-turn awareness across calls.
+     */
+    continuationToken?: string;
+    /**
+     * If true, discard any provided continuationToken and start a fresh
+     * conversation. Useful when starting a new chat in the same session.
+     */
+    resetConversation?: boolean;
 }
 
 export interface BullyingResult {
@@ -64,6 +76,14 @@ export interface BullyingResult {
     customer_id?: string;
     /** Echo of provided metadata (if any) */
     metadata?: Record<string, unknown>;
+    /**
+     * Opaque signed token carrying derived analysis state to the next call.
+     * Pass back as `continuationToken` on the next /bullying request to
+     * preserve multi-turn awareness without server-side content storage.
+     */
+    continuation_token?: string;
+    /** ISO 8601 expiry timestamp of the continuation_token. */
+    continuation_expires_at?: string;
 }
 
 // =============================================================================
@@ -99,6 +119,20 @@ export interface DetectGroomingInput extends TrackingFields {
     context?: ContextInput;
     /** Minimum severity to show crisis support resources (default: 'high'). Critical always shows. */
     supportThreshold?: 'low' | 'medium' | 'high' | 'critical';
+    /**
+     * Opaque signed token returned by a prior /grooming call. Carries derived
+     * conversation-trajectory state (category counts, severity history) into
+     * the next call without storing any user content server-side. Pass back
+     * verbatim on the next call to maintain multi-turn awareness across the
+     * sliding window — recommended for conversations that exceed a single
+     * sane chunk size (~20-30 turns).
+     */
+    continuationToken?: string;
+    /**
+     * If true, discard any provided continuationToken and analyze the messages
+     * as a fresh conversation. Useful when the user starts a new chat.
+     */
+    resetConversation?: boolean;
 }
 
 export interface GroomingResult {
@@ -128,6 +162,14 @@ export interface GroomingResult {
     customer_id?: string;
     /** Echo of provided metadata (if any) */
     metadata?: Record<string, unknown>;
+    /**
+     * Opaque signed token carrying derived analysis state to the next call.
+     * Pass back as `continuationToken` on the next /grooming request to
+     * preserve multi-turn awareness without server-side content storage.
+     */
+    continuation_token?: string;
+    /** ISO 8601 expiry timestamp of the continuation_token. */
+    continuation_expires_at?: string;
 }
 
 // =============================================================================

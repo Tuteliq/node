@@ -14,6 +14,7 @@ export * from './verification.js';
 export * from './synthetic.js';
 export * from './encryption.js';
 export * from './audit.js';
+export * from './incidents.js';
 
 // =============================================================================
 // Common Types

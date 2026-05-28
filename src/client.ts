@@ -109,6 +109,13 @@ import {
     AuditReceipt,
     ReviewIncidentInput,
     ReviewIncidentResult,
+    ListIncidentsInput,
+    ListIncidentsResult,
+    IncidentDetail,
+    IncidentsOverviewInput,
+    IncidentsOverview,
+    IncidentTrendsInput,
+    IncidentTrends,
 } from './types/index.js';
 
 import {
@@ -616,6 +623,8 @@ export class Tuteliq {
                 ...(input.external_id && { external_id: input.external_id }),
                 ...(input.customer_id && { customer_id: input.customer_id }),
                 ...(input.metadata && { metadata: input.metadata }),
+                ...(input.continuationToken && { continuation_token: input.continuationToken }),
+                ...(input.resetConversation && { reset_conversation: true }),
                 ...(Object.keys(options).length > 0 && { options }),
             }
         );
@@ -669,6 +678,8 @@ export class Tuteliq {
                 ...(input.external_id && { external_id: input.external_id }),
                 ...(input.customer_id && { customer_id: input.customer_id }),
                 ...(input.metadata && { metadata: input.metadata }),
+                ...(input.continuationToken && { continuation_token: input.continuationToken }),
+                ...(input.resetConversation && { reset_conversation: true }),
                 ...(Object.keys(options).length > 0 && { options }),
             }
         );
@@ -2023,6 +2034,7 @@ export class Tuteliq {
                 ...(input.external_id && { external_id: input.external_id }),
                 ...(input.customer_id && { customer_id: input.customer_id }),
                 ...(input.metadata && { metadata: input.metadata }),
+                ...(input.bypassCache && { bypass_cache: true }),
                 ...(Object.keys(options).length > 0 && { options }),
             }
         );
@@ -2071,6 +2083,7 @@ export class Tuteliq {
         if (input.customer_id) formData.append('customer_id', input.customer_id);
         formData.append('platform', Tuteliq.resolvePlatform(input.platform));
         if (input.metadata) formData.append('metadata', JSON.stringify(input.metadata));
+        if (input.bypassCache) formData.append('bypass_cache', 'true');
 
         return withRetry(
             () => this.multipartRequest<SyntheticImageResult>(
@@ -2123,6 +2136,7 @@ export class Tuteliq {
         if (input.customer_id) formData.append('customer_id', input.customer_id);
         formData.append('platform', Tuteliq.resolvePlatform(input.platform));
         if (input.metadata) formData.append('metadata', JSON.stringify(input.metadata));
+        if (input.bypassCache) formData.append('bypass_cache', 'true');
 
         return withRetry(
             () => this.multipartRequest<SyntheticAudioResult>(
@@ -2177,6 +2191,7 @@ export class Tuteliq {
         if (input.customer_id) formData.append('customer_id', input.customer_id);
         formData.append('platform', Tuteliq.resolvePlatform(input.platform));
         if (input.metadata) formData.append('metadata', JSON.stringify(input.metadata));
+        if (input.bypassCache) formData.append('bypass_cache', 'true');
 
         return withRetry(
             () => this.multipartRequest<SyntheticVideoResult>(
@@ -2490,6 +2505,115 @@ export class Tuteliq {
             `/api/v1/incidents/${encodeURIComponent(incidentId)}/review`,
             input,
         );
+    }
+
+    // =========================================================================
+    // V3.15.5 — Read-only dashboard queries.
+    //
+    // These map 1:1 to GET /api/v1/incidents/{,/overview,/trends,/:id}. Every
+    // call is scoped to the account behind the API key — there is no
+    // cross-tenant lookup. Server-encrypted fields come back decrypted; BYOK
+    // hybrid envelopes come back with `_e2e_envelope_fields` listing which
+    // fields the caller must decrypt locally with their RSA private key.
+    // =========================================================================
+
+    /**
+     * Paginated, filterable listing of the account's incidents (newest first).
+     *
+     * - Cursor pagination: pass the previous response's `next_cursor` back as
+     *   `cursor`. `null` cursor means no more pages.
+     * - Optional filters can be combined (each requires a composite Firestore
+     *   index; the standard set ships with the API release).
+     * - Set `includeSummary: true` to decrypt the summary text per row at the
+     *   cost of an extra credit per row.
+     *
+     * @example
+     * ```ts
+     * let cursor: string | undefined;
+     * do {
+     *   const page = await tuteliq.listIncidents({
+     *     category: 'bullying',
+     *     severity: 'critical',
+     *     from: '2026-05-01T00:00:00Z',
+     *     limit: 50,
+     *     cursor,
+     *   });
+     *   for (const inc of page.incidents) {
+     *     console.log(inc.id, inc.created_at, inc.risk_level);
+     *   }
+     *   cursor = page.next_cursor ?? undefined;
+     * } while (cursor);
+     * ```
+     */
+    async listIncidents(input: ListIncidentsInput = {}): Promise<ListIncidentsResult> {
+        const query: Record<string, string> = {};
+        if (input.category) query.category = input.category;
+        if (input.severity) query.severity = input.severity;
+        if (input.status) query.status = input.status;
+        if (input.source) query.source = input.source;
+        if (input.from) query.from = input.from;
+        if (input.to) query.to = input.to;
+        if (input.platform) query.platform = input.platform;
+        if (input.externalId) query.external_id = input.externalId;
+        if (input.customerId) query.customer_id = input.customerId;
+        if (input.limit != null) query.limit = String(input.limit);
+        if (input.cursor) query.cursor = input.cursor;
+        if (input.includeSummary) query.include_summary = 'true';
+        const qs = new URLSearchParams(query).toString();
+        const url = '/api/v1/incidents' + (qs ? `?${qs}` : '');
+        return this.requestWithRetry<ListIncidentsResult>('GET', url);
+    }
+
+    /**
+     * Fetch a single incident's full detail. Server-encrypted fields are
+     * decrypted server-side; BYOK fields are returned as hybrid envelopes
+     * with their names in `_e2e_envelope_fields` for client-side decryption.
+     *
+     * Throws on 404 (incident does not exist or does not belong to this
+     * account).
+     */
+    async getIncident(incidentId: string): Promise<IncidentDetail> {
+        if (!incidentId) throw new ValidationError('incident_id is required');
+        return this.requestWithRetry<IncidentDetail>(
+            'GET',
+            `/api/v1/incidents/${encodeURIComponent(incidentId)}`,
+        );
+    }
+
+    /**
+     * KPI overview of incidents over a time window (default = last 30 days):
+     * total, requires-review queue size, 24h/7d/30d totals, counts by
+     * category / severity / source / status, and top 5 platforms.
+     *
+     * @example
+     * ```ts
+     * const ov = await tuteliq.getIncidentsOverview();
+     * console.log(`${ov.requires_review_count} incidents need triage`);
+     * console.log('by severity:', ov.counts_by_severity);
+     * ```
+     */
+    async getIncidentsOverview(input: IncidentsOverviewInput = {}): Promise<IncidentsOverview> {
+        const query: Record<string, string> = {};
+        if (input.from) query.from = input.from;
+        if (input.to) query.to = input.to;
+        const qs = new URLSearchParams(query).toString();
+        const url = '/api/v1/incidents/overview' + (qs ? `?${qs}` : '');
+        return this.requestWithRetry<IncidentsOverview>('GET', url);
+    }
+
+    /**
+     * Time-bucketed incident counts with per-bucket severity breakdown. Use
+     * for trend charts in dashboards. Bucket sizes: hour, day (default), week.
+     * Window defaults to the last 30 days.
+     */
+    async getIncidentTrends(input: IncidentTrendsInput = {}): Promise<IncidentTrends> {
+        const query: Record<string, string> = {};
+        if (input.bucket) query.bucket = input.bucket;
+        if (input.from) query.from = input.from;
+        if (input.to) query.to = input.to;
+        const qs = new URLSearchParams(query).toString();
+        const url = '/api/v1/incidents/trends' + (qs ? `?${qs}` : '');
+        return this.requestWithRetry<IncidentTrends>('GET', url);
     }
 }
 

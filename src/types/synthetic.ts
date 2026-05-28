@@ -25,6 +25,14 @@ export interface DetectSyntheticTextInput extends TrackingFields {
     context?: ContextInput;
     /** Minimum severity to show crisis support resources (default: 'high') */
     supportThreshold?: 'low' | 'medium' | 'high' | 'critical';
+    /**
+     * When true, skip the verdict cache for both read and write — the request
+     * runs a fresh evaluation and the result is not stored. Cache keys are
+     * SHA-256 of the input bytes (one-way; we never store the content itself);
+     * cached verdicts expire after 1 hour. Use for forensic re-tests,
+     * regression probes, or any workflow that needs a guaranteed fresh result.
+     */
+    bypassCache?: boolean;
 }
 
 export interface SyntheticTextResult {
@@ -85,6 +93,8 @@ export interface DetectSyntheticImageInput extends TrackingFields {
     language?: string;
     /** Platform name */
     platform?: string;
+    /** Skip verdict cache (both read and write). See bypassCache on DetectSyntheticTextInput. */
+    bypassCache?: boolean;
 }
 
 /** Vision AI forensic analysis results */
@@ -223,6 +233,8 @@ export interface DetectSyntheticAudioInput extends TrackingFields {
     language?: string;
     /** Platform name */
     platform?: string;
+    /** Skip verdict cache (both read and write). See bypassCache on DetectSyntheticTextInput. */
+    bypassCache?: boolean;
 }
 
 /** Quantitative audio statistics from spectral analysis */
@@ -301,6 +313,8 @@ export interface DetectSyntheticVideoInput extends TrackingFields {
     language?: string;
     /** Platform name */
     platform?: string;
+    /** Skip verdict cache (both read and write). See bypassCache on DetectSyntheticTextInput. */
+    bypassCache?: boolean;
 }
 
 /** Temporal face consistency across video frames */
