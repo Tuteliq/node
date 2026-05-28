@@ -77,6 +77,11 @@ export interface GroomingMessage {
     content: string;
     /** Optional timestamp */
     timestamp?: string | Date;
+    /**
+     * Optional numeric age of THIS message's sender. Helps the engine reason
+     * about age asymmetry per turn rather than inferring it from `role`.
+     */
+    senderAge?: number;
 }
 
 export interface DetectGroomingInput extends TrackingFields {
@@ -84,6 +89,12 @@ export interface DetectGroomingInput extends TrackingFields {
     messages: GroomingMessage[];
     /** Age of the child (optional) */
     childAge?: number;
+    /**
+     * Optional age of the non-minor participant in the conversation. When
+     * known (e.g. on age-verified platforms), this lets the engine compute
+     * the actual age gap rather than infer it from role labels alone.
+     */
+    participantAge?: number;
     /** Context for better analysis */
     context?: ContextInput;
     /** Minimum severity to show crisis support resources (default: 'high'). Critical always shows. */

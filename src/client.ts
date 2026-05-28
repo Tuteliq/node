@@ -659,9 +659,11 @@ export class Tuteliq {
                 messages: input.messages.map(m => ({
                     sender_role: m.role,
                     text: m.content,
+                    ...(m.senderAge !== undefined && { sender_age: m.senderAge }),
                 })),
                 context: {
                     child_age: input.childAge,
+                    ...(input.participantAge !== undefined && { participant_age: input.participantAge }),
                     ...this.normalizeContext(input.context),
                 },
                 ...(input.external_id && { external_id: input.external_id }),
