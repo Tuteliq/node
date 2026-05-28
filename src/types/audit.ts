@@ -97,3 +97,44 @@ export interface ReviewIncidentResult {
     revised: { risk_category: string; risk_level: string };
     audit_receipt: { request_id: string; timestamp: string; signature: string } | null;
 }
+
+/**
+ * V3.15.7 — bulk-review input. Applies the same action + reason to up to
+ * 100 incidents in one call. Each incident still emits its own Art 12
+ * audit receipt — bulk is a UX shortcut, not a compliance shortcut.
+ */
+export interface BatchReviewIncidentsInput {
+    /** 1..100 incident UUIDs to apply the same review to. */
+    incident_ids: string[];
+    action: ModeratorAction;
+    reason_code: ModeratorReasonCode;
+    reason_comment?: string;
+    new_risk_level?: string;
+    new_risk_category?: string;
+    moderator_external_id?: string;
+    retention_class?: RetentionClass;
+}
+
+export interface BatchReviewItemResult {
+    incident_id: string;
+    ok: boolean;
+    /** Present when ok=true. */
+    original?: { risk_category: string; risk_level: string };
+    /** Present when ok=true. */
+    revised?: { risk_category: string; risk_level: string };
+    /** Present when ok=true. May be null if the receipt write failed but the review succeeded. */
+    audit_receipt?: { request_id: string; timestamp: string; signature: string } | null;
+    /** Present when ok=false. Carries the error code or message from the failed write. */
+    error?: string;
+}
+
+export interface BatchReviewIncidentsResult {
+    /** Number of incidents in the input batch. */
+    total: number;
+    /** Number that succeeded (review applied + audit receipt written). */
+    succeeded: number;
+    /** Number that failed at any step. */
+    failed: number;
+    /** Per-incident outcome in the input order. */
+    results: BatchReviewItemResult[];
+}

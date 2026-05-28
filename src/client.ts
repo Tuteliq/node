@@ -109,6 +109,8 @@ import {
     AuditReceipt,
     ReviewIncidentInput,
     ReviewIncidentResult,
+    BatchReviewIncidentsInput,
+    BatchReviewIncidentsResult,
     ListIncidentsInput,
     ListIncidentsResult,
     IncidentDetail,
@@ -2503,6 +2505,47 @@ export class Tuteliq {
         return this.requestWithRetry<ReviewIncidentResult>(
             'POST',
             `/api/v1/incidents/${encodeURIComponent(incidentId)}/review`,
+            input,
+        );
+    }
+
+    /**
+     * Submit the SAME moderator review across multiple incidents in one
+     * call. Each incident still emits its own signed Art 12 audit receipt
+     * — bulk is a UX shortcut, not a compliance shortcut. Failures on
+     * individual incidents are non-fatal; the response carries per-incident
+     * outcome so the caller can retry the failed ones without re-running
+     * successful items.
+     *
+     * Max 100 incidents per batch.
+     *
+     * @example
+     * ```ts
+     * const r = await tuteliq.batchReviewIncidents({
+     *   incident_ids: ['abc-…', 'def-…', 'ghi-…'],
+     *   action: 'dismiss',
+     *   reason_code: 'false_positive',
+     * });
+     * console.log(`${r.succeeded}/${r.total} dismissed`);
+     * if (r.failed > 0) {
+     *   const failures = r.results.filter(item => !item.ok);
+     *   // retry or escalate
+     * }
+     * ```
+     */
+    async batchReviewIncidents(input: BatchReviewIncidentsInput): Promise<BatchReviewIncidentsResult> {
+        if (!Array.isArray(input.incident_ids) || input.incident_ids.length === 0) {
+            throw new ValidationError('incident_ids must be a non-empty array');
+        }
+        if (input.incident_ids.length > 100) {
+            throw new ValidationError('batchReviewIncidents accepts at most 100 incidents per call');
+        }
+        if (input.action === 'reclassify' && !input.new_risk_category) {
+            throw new ValidationError('action="reclassify" requires new_risk_category');
+        }
+        return this.requestWithRetry<BatchReviewIncidentsResult>(
+            'POST',
+            '/api/v1/incidents/batch-review',
             input,
         );
     }
