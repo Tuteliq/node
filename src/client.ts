@@ -118,6 +118,25 @@ import {
     IncidentsOverview,
     IncidentTrendsInput,
     IncidentTrends,
+    // Policy automation rules
+    CreatePolicyRuleInput,
+    UpdatePolicyRuleInput,
+    ListPolicyRulesResult,
+    PolicyRuleResult,
+    DeletePolicyRuleResult,
+    EvaluatePolicyRulesInput,
+    EvaluatePolicyRulesResult,
+    // Detection settings
+    DetectionSettings,
+    UpdateDetectionSettingsInput,
+    UpdateDetectionSettingsResult,
+    ResetDetectionSettingsResult,
+    // Threat intelligence
+    IntelligenceTrendsOptions,
+    IntelligenceTrendsResult,
+    EmergingThreatsResult,
+    WeeklyDigestResult,
+    RiskTrendsResult,
 } from './types/index.js';
 
 import {
@@ -1029,6 +1048,211 @@ export class Tuteliq {
     }
 
     // =========================================================================
+    // Policy Automation Rules
+    // =========================================================================
+
+    /**
+     * List all policy automation rules for your account.
+     *
+     * @example
+     * ```typescript
+     * const { rules } = await tuteliq.listPolicyRules()
+     * rules.forEach(r => console.log(r.name, r.enabled))
+     * ```
+     */
+    async listPolicyRules(): Promise<ListPolicyRulesResult> {
+        return this.requestWithRetry<ListPolicyRulesResult>(
+            'GET',
+            '/api/v1/policy/automation'
+        );
+    }
+
+    /**
+     * Create a policy automation rule. When a detection result matches the
+     * rule's conditions, the configured action (block / flag / escalate /
+     * notify / log_only) is applied automatically.
+     *
+     * @example
+     * ```typescript
+     * const { rule } = await tuteliq.createPolicyRule({
+     *   name: 'Auto-escalate critical grooming',
+     *   enabled: true,
+     *   endpoints: ['grooming'],
+     *   conditions: { min_severity: 'critical' },
+     *   action: { type: 'escalate', escalate_to: 'safety-team' },
+     *   priority: 0,
+     * })
+     * ```
+     */
+    async createPolicyRule(input: CreatePolicyRuleInput): Promise<PolicyRuleResult> {
+        return this.requestWithRetry<PolicyRuleResult>(
+            'POST',
+            '/api/v1/policy/automation',
+            input as unknown as Record<string, unknown>
+        );
+    }
+
+    /** Get a single policy automation rule by ID. */
+    async getPolicyRule(ruleId: string): Promise<PolicyRuleResult> {
+        if (!ruleId) throw new ValidationError('Rule ID is required');
+        return this.requestWithRetry<PolicyRuleResult>(
+            'GET',
+            `/api/v1/policy/automation/${encodeURIComponent(ruleId)}`
+        );
+    }
+
+    /** Update a policy automation rule. Accepts any subset of rule fields. */
+    async updatePolicyRule(ruleId: string, input: UpdatePolicyRuleInput): Promise<PolicyRuleResult> {
+        if (!ruleId) throw new ValidationError('Rule ID is required');
+        return this.requestWithRetry<PolicyRuleResult>(
+            'PUT',
+            `/api/v1/policy/automation/${encodeURIComponent(ruleId)}`,
+            input as unknown as Record<string, unknown>
+        );
+    }
+
+    /** Delete a policy automation rule. */
+    async deletePolicyRule(ruleId: string): Promise<DeletePolicyRuleResult> {
+        if (!ruleId) throw new ValidationError('Rule ID is required');
+        return this.requestWithRetry<DeletePolicyRuleResult>(
+            'DELETE',
+            `/api/v1/policy/automation/${encodeURIComponent(ruleId)}`
+        );
+    }
+
+    /**
+     * Test-evaluate your policy rules against a hypothetical detection result
+     * without running a real detection. Returns which rules matched and the
+     * winning action after priority resolution.
+     *
+     * @example
+     * ```typescript
+     * const { evaluation } = await tuteliq.evaluatePolicyRules({
+     *   endpoint: 'grooming',
+     *   risk_score: 0.92,
+     *   severity: 'critical',
+     *   categories: ['isolation'],
+     * })
+     * console.log(evaluation.policy_action) // 'escalate'
+     * ```
+     */
+    async evaluatePolicyRules(input: EvaluatePolicyRulesInput): Promise<EvaluatePolicyRulesResult> {
+        return this.requestWithRetry<EvaluatePolicyRulesResult>(
+            'POST',
+            '/api/v1/policy/automation/evaluate',
+            input as unknown as Record<string, unknown>
+        );
+    }
+
+    // =========================================================================
+    // Detection Settings
+    // =========================================================================
+
+    /**
+     * Get the account's detection settings: which endpoints are enabled or
+     * disabled, and the default context merged into detection requests.
+     */
+    async getDetectionSettings(): Promise<DetectionSettings> {
+        return this.requestWithRetry<DetectionSettings>(
+            'GET',
+            '/api/v1/settings/detection'
+        );
+    }
+
+    /**
+     * Update the account's detection settings. `enabled_endpoints` and
+     * `disabled_endpoints` are mutually exclusive — provide at most one.
+     *
+     * @example
+     * ```typescript
+     * await tuteliq.updateDetectionSettings({
+     *   disabled_endpoints: ['gambling-harm'],
+     *   default_context: { age_group: '13_17', platform: 'discord' },
+     * })
+     * ```
+     */
+    async updateDetectionSettings(input: UpdateDetectionSettingsInput): Promise<UpdateDetectionSettingsResult> {
+        if (input.enabled_endpoints && input.disabled_endpoints) {
+            throw new ValidationError('enabled_endpoints and disabled_endpoints are mutually exclusive');
+        }
+        return this.requestWithRetry<UpdateDetectionSettingsResult>(
+            'PUT',
+            '/api/v1/settings/detection',
+            input as unknown as Record<string, unknown>
+        );
+    }
+
+    /** Reset detection settings to their defaults (all endpoints enabled). */
+    async resetDetectionSettings(): Promise<ResetDetectionSettingsResult> {
+        return this.requestWithRetry<ResetDetectionSettingsResult>(
+            'DELETE',
+            '/api/v1/settings/detection'
+        );
+    }
+
+    // =========================================================================
+    // Threat Intelligence (Business+ tier)
+    // =========================================================================
+
+    /**
+     * Get anonymised threat intelligence trends across the Tuteliq network.
+     * Requires Business tier or higher.
+     */
+    async getIntelligenceTrends(options?: IntelligenceTrendsOptions): Promise<IntelligenceTrendsResult> {
+        const params = new URLSearchParams();
+        if (options?.days != null) params.set('days', String(options.days));
+        if (options?.endpoint) params.set('endpoint', options.endpoint);
+        if (options?.age_group) params.set('age_group', options.age_group);
+        if (options?.platform) params.set('platform', options.platform);
+        const query = params.toString() ? `?${params.toString()}` : '';
+        return this.requestWithRetry<IntelligenceTrendsResult>(
+            'GET',
+            `/api/v1/intelligence/trends${query}`
+        );
+    }
+
+    /**
+     * Get emerging threats over a recent window (default 7 days, max 90).
+     * Requires Business tier or higher.
+     */
+    async getEmergingThreats(days?: number): Promise<EmergingThreatsResult> {
+        const params = new URLSearchParams();
+        if (days != null) params.set('days', String(days));
+        const query = params.toString() ? `?${params.toString()}` : '';
+        return this.requestWithRetry<EmergingThreatsResult>(
+            'GET',
+            `/api/v1/intelligence/emerging${query}`
+        );
+    }
+
+    /**
+     * Get the weekly threat intelligence digest: narrative summary, top
+     * endpoints/categories, emerging threats, and notable changes.
+     * Requires Business tier or higher.
+     */
+    async getWeeklyDigest(): Promise<WeeklyDigestResult> {
+        return this.requestWithRetry<WeeklyDigestResult>(
+            'GET',
+            '/api/v1/intelligence/weekly-digest'
+        );
+    }
+
+    /**
+     * Get anonymised global risk trends. Requires Business tier or higher.
+     *
+     * @param days - Window size in days (1-90, default 30)
+     */
+    async getRiskTrends(days?: number): Promise<RiskTrendsResult> {
+        const params = new URLSearchParams();
+        if (days != null) params.set('days', String(days));
+        const query = params.toString() ? `?${params.toString()}` : '';
+        return this.requestWithRetry<RiskTrendsResult>(
+            'GET',
+            `/api/v1/safety/risk-trends${query}`
+        );
+    }
+
+    // =========================================================================
     // Batch Methods
     // =========================================================================
 
@@ -1053,8 +1277,8 @@ export class Tuteliq {
         if (!input.items || input.items.length === 0) {
             throw new ValidationError('Items array is required and cannot be empty');
         }
-        if (input.items.length > 25) {
-            throw new ValidationError('Maximum 25 items per batch request');
+        if (input.items.length > 50) {
+            throw new ValidationError('Maximum 50 items per batch request');
         }
 
         return this.requestWithRetry<BatchAnalyzeResult>(
@@ -2218,6 +2442,9 @@ export class Tuteliq {
      * console.log(profile.trend)                    // 'increasing'
      * console.log(profile.synthetic_count)          // 12
      * ```
+     *
+     * @deprecated The backing API route was never shipped and this method
+     * returns a 404 at runtime. It will be removed in the next major version.
      */
     async getSyntheticProfile(customerId: string): Promise<SyntheticProfile> {
         if (!customerId) {

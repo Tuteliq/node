@@ -742,7 +742,9 @@ if (result.lip_sync) {
 
 Supported formats: mp4, webm, avi, mov (max 100MB).
 
-#### `getSyntheticProfile(customerId)`
+#### `getSyntheticProfile(customerId)` (deprecated)
+
+> ⚠️ **Deprecated:** the backing API route was never shipped and this method returns a 404. It will be removed in the next major version.
 
 Retrieve account-level synthetic content profiling — a 30-day rolling window of all synthetic detections for a given customer.
 
@@ -1132,6 +1134,101 @@ await tuteliq.setPolicy({
     alwaysEscalate: true
   }
 })
+```
+
+---
+
+### Policy Automation Rules
+
+Define rules that act automatically when a detection result matches — block, flag, escalate, notify, or log-only.
+
+#### `listPolicyRules()` / `getPolicyRule(ruleId)`
+
+```typescript
+const { rules } = await tuteliq.listPolicyRules()
+const { rule } = await tuteliq.getPolicyRule('rule_123')
+```
+
+#### `createPolicyRule(input)` / `updatePolicyRule(ruleId, input)` / `deletePolicyRule(ruleId)`
+
+```typescript
+const { rule } = await tuteliq.createPolicyRule({
+  name: 'Auto-escalate critical grooming',
+  enabled: true,
+  endpoints: ['grooming'],
+  conditions: { min_severity: 'critical' },        // also: min_risk_score, categories, age_groups
+  action: { type: 'escalate', escalate_to: 'safety-team' }, // block | flag | escalate | notify | log_only
+  priority: 0,
+})
+
+await tuteliq.updatePolicyRule(rule.id, { enabled: false })
+await tuteliq.deletePolicyRule(rule.id)
+```
+
+#### `evaluatePolicyRules(input)`
+
+Dry-run your rules against a hypothetical detection result:
+
+```typescript
+const { evaluation } = await tuteliq.evaluatePolicyRules({
+  endpoint: 'grooming',
+  risk_score: 0.92,
+  severity: 'critical',
+  categories: ['isolation'],
+})
+console.log(evaluation.policy_action)  // 'escalate'
+console.log(evaluation.rules_matched)  // which rules fired
+```
+
+---
+
+### Detection Settings
+
+#### `getDetectionSettings()` / `updateDetectionSettings(input)` / `resetDetectionSettings()`
+
+Enable or disable detection endpoints per account, and set a default context merged into every detection request. `enabled_endpoints` and `disabled_endpoints` are mutually exclusive.
+
+```typescript
+const settings = await tuteliq.getDetectionSettings()
+
+await tuteliq.updateDetectionSettings({
+  disabled_endpoints: ['gambling-harm'],
+  default_context: { age_group: '13_17', platform: 'discord' },
+})
+
+await tuteliq.resetDetectionSettings()  // back to defaults
+```
+
+---
+
+### Threat Intelligence (Business+ tier)
+
+Anonymised, network-wide threat signals. Requires Business tier or higher — lower tiers receive a 403.
+
+#### `getIntelligenceTrends(options?)`
+
+```typescript
+const trends = await tuteliq.getIntelligenceTrends({ days: 30, endpoint: 'grooming' })
+console.log(trends.total_signals, trends.emerging_threats)
+```
+
+#### `getEmergingThreats(days?)`
+
+```typescript
+const { emerging_threats } = await tuteliq.getEmergingThreats(7)
+```
+
+#### `getWeeklyDigest()`
+
+```typescript
+const digest = await tuteliq.getWeeklyDigest()
+console.log(digest.summary, digest.notable_changes)
+```
+
+#### `getRiskTrends(days?)`
+
+```typescript
+const { trends } = await tuteliq.getRiskTrends(30)
 ```
 
 ---

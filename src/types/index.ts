@@ -15,6 +15,9 @@ export * from './synthetic.js';
 export * from './encryption.js';
 export * from './audit.js';
 export * from './incidents.js';
+export * from './automation.js';
+export * from './settings.js';
+export * from './intelligence.js';
 
 // =============================================================================
 // Common Types
@@ -216,7 +219,7 @@ export interface BatchGroomingItem extends BatchItemBase {
 export type BatchItem = BatchTextItem | BatchGroomingItem;
 
 export interface BatchAnalyzeInput {
-    /** Items to analyze (max 25) */
+    /** Items to analyze (max 50) */
     items: BatchItem[];
     /** Process items in parallel (default: true) */
     parallel?: boolean;
