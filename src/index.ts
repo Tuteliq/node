@@ -257,5 +257,10 @@ export type {
     IncidentReportResponse,
 } from './types/index.js';
 
+// Policy automation, detection settings, threat intelligence (v2.15.0)
+export type * from './types/automation.js';
+export type * from './types/settings.js';
+export type * from './types/intelligence.js';
+
 // Re-export ContentSeverity from constants
 export { ContentSeverity } from './constants.js';
