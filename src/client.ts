@@ -786,6 +786,7 @@ export class Tuteliq {
             promises.push(this.detectBullying({
                 content: input.content,
                 context: input.context,
+                verdictOnly: input.verdictOnly,
                 external_id: input.external_id,
                 customer_id: input.customer_id,
                 metadata: input.metadata,
@@ -797,6 +798,7 @@ export class Tuteliq {
             promises.push(this.detectUnsafe({
                 content: input.content,
                 context: input.context,
+                verdictOnly: input.verdictOnly,
                 external_id: input.external_id,
                 customer_id: input.customer_id,
                 metadata: input.metadata,

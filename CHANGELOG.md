@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.20.0] - 2026-08-04
+
+### Added
+
+- **`verdictOnly` on `analyze()`** — `AnalyzeInput` now accepts `verdictOnly`, forwarded to both detectors the method fans out to. Previously you had to drop `analyze()` and call `detectBullying` / `detectUnsafe` yourself to use fast mode, then recombine the results by hand. The combined `risk_level` and `recommended_action` are derived exactly as before.
+
+  Because the sub-calls already run in parallel, the saving is the difference on the slower detector rather than the full per-call saving.
+
+### Fixed
+
+- **`verdictOnly` did nothing on `detectBullying` / `detectUnsafe`** — Both were documented as supporting it since 2.16.0 and `DetectBullyingInput` declared it, but the API never accepted the flag on those routes: it was validated away and silently discarded. The API now honours it and skips generating `rationale`, the only free-text field either endpoint produces. **Requires the API deployed on or after 2026-08-04**; against an older deployment the flag is still ignored rather than erroring.
+- **`rationale` is now optional** on `BullyingResult`, `GroomingResult` and `UnsafeResult` — it is omitted from the response when `verdictOnly` is set, so the type no longer promises a field that will not be there.
+
 ## [2.19.0] - 2026-08-04
 
 ### Added

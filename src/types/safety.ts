@@ -145,8 +145,8 @@ export interface BullyingResult {
     confidence: number;
     /** Severity of the bullying */
     severity: Severity;
-    /** Explanation of the analysis */
-    rationale: string;
+    /** Explanation of the analysis. Omitted when `verdictOnly` was set. */
+    rationale?: string;
     /**
      * Recommended action, as a stable enum. Branch on this (or `isActionable`)
      * rather than on the bare presence of a signal.
@@ -246,8 +246,8 @@ export interface GroomingResult {
     confidence: number;
     /** Grooming indicators/flags detected */
     flags: string[];
-    /** Explanation of the analysis */
-    rationale: string;
+    /** Explanation of the analysis. Omitted when `verdictOnly` was set. */
+    rationale?: string;
     /** Risk score (0-1) */
     risk_score: number;
     /**
@@ -316,8 +316,8 @@ export interface UnsafeResult {
     risk_score: number;
     /** Risk level derived from risk_score */
     risk_level?: 'none' | 'low' | 'medium' | 'high' | 'critical';
-    /** Explanation of the analysis */
-    rationale: string;
+    /** Explanation of the analysis. Omitted when `verdictOnly` was set. */
+    rationale?: string;
     /**
      * Recommended action, as a stable enum. Branch on this (or `isActionable`)
      * rather than on the bare presence of a signal.
@@ -353,6 +353,17 @@ export interface AnalyzeInput extends TrackingFields {
     context?: ContextInput;
     /** Which detections to run (defaults to ['bullying', 'unsafe']) */
     include?: Array<'bullying' | 'unsafe'>;
+    /**
+     * Fast mode, forwarded to each detector this call fans out to. The
+     * bullying and unsafe endpoints skip generating `rationale` — the only
+     * free-text field either produces — which cuts response size and latency.
+     * The verdict (severity, categories, recommended_action, risk_score) is
+     * unchanged, as is the combined `risk_level` this method derives.
+     *
+     * Because the sub-calls run in parallel, the saving here is the difference
+     * on the slower detector rather than the full per-call saving.
+     */
+    verdictOnly?: boolean;
 }
 
 export interface AnalyzeResult {
