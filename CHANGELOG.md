@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.17.1] - 2026-08-04
+
+Documentation only. No code change from 2.17.0 — the published bundles are identical.
+
+### Fixed
+
+- **README documented two values the API does not emit** — The synthetic-content example showed `recommended_action` as `'immediate_review'`, which has never been a valid value; a comparison against it can never match. Corrected to `immediate_intervention`. The `DetectionResult` shape also still typed `recommended_action` as `string`; it now shows the `RecommendedAction` union and `action_detail`.
+
 ## [2.17.0] - 2026-08-04
 
 ### Fixed
