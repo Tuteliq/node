@@ -1,6 +1,6 @@
 import { TrackingFields } from './index.js';
 import { ContentSeverity } from '../constants.js';
-import { BullyingResult, GroomingResult, UnsafeResult } from './safety.js';
+import { BullyingResult, GroomingResult, RecommendedAction, UnsafeResult } from './safety.js';
 import { EmotionsResult } from './analysis.js';
 
 // Re-export for convenience
@@ -69,6 +69,28 @@ export interface VoiceAnalysisResult {
     overall_risk_score: number;
     /** Overall severity level */
     overall_severity: ContentSeverity;
+    /**
+     * A concern was observed at ANY severity, including monitor-only cases.
+     * For production branching prefer `recommended_action` / `isActionable`.
+     */
+    detected: boolean;
+    /** Confidence in the overall verdict (0-1). */
+    confidence: number;
+    /**
+     * Routing key, matching every other detection endpoint. Ordered weakest to
+     * strongest and safe to switch on.
+     */
+    recommended_action: RecommendedAction;
+    /**
+     * Human-readable expansion of `recommended_action`, for a moderator UI.
+     * Free text: do not branch on it.
+     */
+    action_detail?: string;
+    /**
+     * Why this verdict was reached. Built from category and severity labels
+     * only; never contains the transcript, image description or extracted text.
+     */
+    rationale: string;
     /** Number of credits consumed by this request */
     credits_used?: number;
     /** Echo of provided external_id */
@@ -83,17 +105,28 @@ export interface VoiceAnalysisResult {
 // Video Analysis
 // =============================================================================
 
-export interface VideoSafetyFinding {
-    /** Frame index where the finding occurred */
+/** Per-frame analysis, one entry per sampled frame. */
+export interface VideoFrameResult {
+    /** Index of the sampled frame */
     frame_index: number;
-    /** Timestamp in seconds */
-    timestamp: number;
-    /** Description of the finding */
-    description: string;
-    /** Safety categories detected */
-    categories: string[];
-    /** Severity score (0-1) */
-    severity: number;
+    /** Position of the frame in the video, in seconds */
+    timestamp_s: number;
+    /** Vision analysis for this frame */
+    vision: VisionResult;
+    /** Risk score for this frame (0-1) */
+    risk_score: number;
+    /** Severity level for this frame */
+    severity: ContentSeverity;
+}
+
+/** A point in the video that exceeded the reporting threshold. */
+export interface VideoFlaggedTimestamp {
+    /** Position in the video, in seconds */
+    timestamp_s: number;
+    /** Categories detected at this timestamp */
+    reason: string;
+    /** Severity level at this timestamp */
+    severity: ContentSeverity;
 }
 
 export interface AnalyzeVideoInput extends TrackingFields {
@@ -114,12 +147,38 @@ export interface VideoAnalysisResult {
     file_id?: string;
     /** Number of frames analyzed */
     frames_analyzed: number;
-    /** Safety findings across frames */
-    safety_findings: VideoSafetyFinding[];
+    /** Duration of the video in seconds */
+    duration_seconds: number;
+    /** Per-frame analysis, one entry per sampled frame */
+    frame_results: VideoFrameResult[];
+    /** Points in the video that exceeded the reporting threshold */
+    flagged_timestamps: VideoFlaggedTimestamp[];
     /** Maximum risk score across all findings (0-1) */
     overall_risk_score: number;
     /** Overall severity level */
     overall_severity: ContentSeverity;
+    /**
+     * A concern was observed at ANY severity, including monitor-only cases.
+     * For production branching prefer `recommended_action` / `isActionable`.
+     */
+    detected: boolean;
+    /** Confidence in the overall verdict (0-1). */
+    confidence: number;
+    /**
+     * Routing key, matching every other detection endpoint. Ordered weakest to
+     * strongest and safe to switch on.
+     */
+    recommended_action: RecommendedAction;
+    /**
+     * Human-readable expansion of `recommended_action`, for a moderator UI.
+     * Free text: do not branch on it.
+     */
+    action_detail?: string;
+    /**
+     * Why this verdict was reached. Built from category and severity labels
+     * only; never contains the transcript, image description or extracted text.
+     */
+    rationale: string;
     /** Number of credits consumed by this request */
     credits_used?: number;
     /** Echo of provided external_id */
@@ -181,6 +240,28 @@ export interface ImageAnalysisResult {
     overall_risk_score: number;
     /** Overall severity level */
     overall_severity: ContentSeverity;
+    /**
+     * A concern was observed at ANY severity, including monitor-only cases.
+     * For production branching prefer `recommended_action` / `isActionable`.
+     */
+    detected: boolean;
+    /** Confidence in the overall verdict (0-1). */
+    confidence: number;
+    /**
+     * Routing key, matching every other detection endpoint. Ordered weakest to
+     * strongest and safe to switch on.
+     */
+    recommended_action: RecommendedAction;
+    /**
+     * Human-readable expansion of `recommended_action`, for a moderator UI.
+     * Free text: do not branch on it.
+     */
+    action_detail?: string;
+    /**
+     * Why this verdict was reached. Built from category and severity labels
+     * only; never contains the transcript, image description or extracted text.
+     */
+    rationale: string;
     /** Number of credits consumed by this request */
     credits_used?: number;
     /** Echo of provided external_id */

@@ -517,6 +517,8 @@ console.log(result.transcription.segments)   // Timestamped segments
 console.log(result.analysis?.bullying)       // Bullying analysis on transcript
 console.log(result.overall_risk_score)       // 0.0 - 1.0
 console.log(result.overall_severity)         // 'none' | 'low' | 'medium' | 'high' | 'critical'
+console.log(result.recommended_action)       // branch on this
+console.log(result.rationale)                // why this verdict was reached
 ```
 
 Supported audio formats: mp3, wav, m4a, ogg, flac, webm, mp4 (max 25MB).
@@ -541,6 +543,21 @@ console.log(result.vision.visual_categories)    // Visual harm categories
 console.log(result.text_analysis?.bullying)     // Text safety analysis (if OCR found text)
 console.log(result.overall_risk_score)          // 0.0 - 1.0
 console.log(result.overall_severity)            // Combined severity
+console.log(result.recommended_action)          // branch on this
+console.log(result.rationale)                   // why this verdict was reached
+```
+
+The media endpoints return the same verdict fields as the text endpoints, so a
+single code path can route everything. `recommended_action` on an image takes
+the stronger of the visual verdict and the OCR text verdict, so a screenshot of
+abusive text still routes correctly even though the picture itself is benign:
+
+```typescript
+import { isActionable } from '@tuteliq/sdk'
+
+if (isActionable(result.recommended_action)) {
+  // flag_for_review or stronger — a human should see this
+}
 ```
 
 Supported image formats: png, jpg, jpeg, gif, webp (max 10MB).

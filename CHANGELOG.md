@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.18.0] - 2026-08-04
+
+### Added
+
+- **Verdict fields on the media endpoints** — `analyzeImage`, `analyzeVoice` and `analyzeVideo` results now carry `detected`, `confidence`, `recommended_action`, `action_detail` and `rationale`, matching every other detection result. Previously these returned only `overall_severity`, so callers had to reimplement their own threshold logic to decide whether media needed a moderator. Branch on `recommended_action` (or `isActionable`) as you would elsewhere.
+
+### Fixed
+
+- **`VideoAnalysisResult.safety_findings` did not exist** — The type declared a `safety_findings: VideoSafetyFinding[]` field that the API has never returned, so `result.safety_findings.map(...)` type-checked and then threw at runtime. Replaced with the fields the endpoint actually returns: `frame_results` (per-frame analysis), `flagged_timestamps` (points exceeding the reporting threshold) and `duration_seconds`. `VideoSafetyFinding` is replaced by `VideoFrameResult` and `VideoFlaggedTimestamp`.
+- **Voice severity can now be `none`** — The API floored voice `overall_severity` at `low`, so silent or benign audio reported as a low-severity concern. It now reports `none`, which `ContentSeverity` already allowed. If you filtered voice results with `severity !== 'low'`, add a `none` check.
+
 ## [2.17.1] - 2026-08-04
 
 Documentation only. No code change from 2.17.0 — the published bundles are identical.
