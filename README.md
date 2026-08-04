@@ -205,7 +205,21 @@ console.log(result.bullying_type)    // ['exclusion', 'verbal_abuse']
 console.log(result.confidence)       // 0.92
 console.log(result.risk_score)       // 0.75
 console.log(result.rationale)        // "Direct exclusion language..."
-console.log(result.recommended_action) // 'flag_for_moderator'
+console.log(result.recommended_action) // 'flag_for_review'
+console.log(result.action_detail)      // "Route to a moderator within the hour."
+```
+
+`recommended_action` is the field to branch on. It is one of `none`, `monitor`,
+`flag_for_review`, `block` or `immediate_intervention`, ordered weakest to
+strongest, and is stable across releases. Prefer it over `is_bullying`, which
+fires on monitor-only cases too:
+
+```typescript
+import { isActionable } from '@tuteliq/sdk'
+
+if (isActionable(result.recommended_action)) {
+  // flag_for_review or stronger — a human should see this
+}
 ```
 
 #### `detectGrooming(input)`
@@ -315,7 +329,8 @@ import type { DetectionInput, DetectionResult } from '@tuteliq/sdk'
   categories: DetectionCategory[],     // Detected categories with tags and confidence
   evidence?: DetectionEvidence[],      // Evidence excerpts (if includeEvidence was true)
   age_calibration?: AgeCalibration,    // Age calibration details
-  recommended_action: string,
+  recommended_action: RecommendedAction, // 'none' | 'monitor' | 'flag_for_review' | 'block' | 'immediate_intervention'
+  action_detail?: string,              // Human-readable expansion; do not branch on it
   rationale: string,
   language: string,                    // Detected language code
   language_status: LanguageStatus,     // 'stable' | 'beta'
@@ -617,7 +632,7 @@ console.log(result.risk_score)        // 0.75
 console.log(result.level)             // 'high'
 console.log(result.categories)        // [{ tag: 'SYNTHETIC_CSAM', label: '...', confidence: 0.9 }]
 console.log(result.rationale)         // "AI-generated text with..."
-console.log(result.recommended_action) // 'immediate_review'
+console.log(result.recommended_action) // 'immediate_intervention'
 ```
 
 #### `detectSyntheticImage(input)`

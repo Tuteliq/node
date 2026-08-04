@@ -5,6 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.17.0] - 2026-08-04
+
+### Fixed
+
+- **`analyze()` silently returned `none` for moderator-worthy verdicts** — The combined `recommended_action` was computed by matching the literal string `flag_for_moderator`, which the API does not emit (it returns `flag_for_review`). Any result that should have aggregated to "a human needs to see this" resolved to `none` instead. The aggregation now ranks over the shared action enum, maps legacy spellings, and escalates an unrecognised value to `flag_for_review` rather than discarding it, so a verdict can no longer disappear.
+
+### Added
+
+- **`RecommendedAction` type** — `recommended_action` is now typed as `'none' | 'monitor' | 'flag_for_review' | 'block' | 'immediate_intervention'` instead of `string`, on all detection results. Ordered weakest to strongest and safe to `switch` over.
+- **`action_detail`** — Optional human-readable expansion of `recommended_action`, for display in a moderator UI. Free text; do not branch on it.
+- **`isActionable(action)`** — Returns true for `flag_for_review` and above. Use it instead of branching on `is_bullying` / `unsafe` / a `low` grooming risk, all of which fire on monitor-only cases and over-alert.
+- **`strongestAction(actions)`** and **`toRecommendedAction(value)`** — Helpers for combining and normalising action values across endpoints.
+
+### Changed
+
+- **Branching guidance no longer references `normalized`** — The API no longer returns a `normalized` block on the bullying, grooming and unsafe endpoints; it duplicated fields already present at the top level. The documented pattern `if (result.normalized?.actionable)` will silently stop matching, so replace it with `if (isActionable(result.recommended_action))`. The per-message detail formerly projected into `normalized.evidence` is available as `message_analysis`.
+
+## [2.16.0] - 2026-07-25
+
+### Added
+
+- **Fast mode (`verdictOnly`)** — Pass `verdictOnly: true` on any detection method (`detectBullying`, `detectGrooming`, `detectUnsafe`, the fraud/safety-extended detectors, and `analyseMulti`) to omit the per-message `message_analysis` breakdown and return only the conversation-level verdict. Lower latency and a smaller payload for real-time screening of live chat; the verdict itself (risk level, categories, recommended action) is unchanged. Screen in fast mode, then re-run flagged content in standard mode for the full per-message trajectory.
+
 ## [2.5.0] - 2026-03-15
 
 ### Added

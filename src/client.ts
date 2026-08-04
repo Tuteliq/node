@@ -139,6 +139,8 @@ import {
     RiskTrendsResult,
 } from './types/index.js';
 
+import { strongestAction } from './types/safety.js';
+
 import {
     TuteliqError,
     AuthenticationError,
@@ -337,6 +339,7 @@ export class Tuteliq {
         const options: Record<string, unknown> = {};
         if (input.supportThreshold) options.support_threshold = input.supportThreshold;
         if (input.includeEvidence) options.include_evidence = true;
+        if (input.verdictOnly) options.verdict_only = true;
 
         return {
             text: input.content,
@@ -611,9 +614,9 @@ export class Tuteliq {
      *
      * Branching guidance: the top-level `is_bullying` boolean fires whenever
      * the model observes ANY signal — including low-severity monitor-only
-     * cases. For production branching prefer `result.normalized.actionable`
-     * (true iff level is medium / high / critical) or `result.recommended_action`
-     * (`flag_for_moderator` / `immediate_intervention`).
+     * cases. For production branching use `result.recommended_action`
+     * (`flag_for_review` / `block` / `immediate_intervention`), or the
+     * `isActionable` helper.
      *
      * @example
      * ```typescript
@@ -622,8 +625,8 @@ export class Tuteliq {
      *   context: 'chat'
      * })
      *
-     * // Recommended: branch on normalized.actionable or recommended_action
-     * if (result.normalized?.actionable) {
+     * // Recommended: branch on recommended_action
+     * if (isActionable(result.recommended_action)) {
      *   console.log('Bullying requires moderator action')
      *   console.log('Rationale:', result.rationale)
      * }
@@ -634,6 +637,7 @@ export class Tuteliq {
 
         const options: Record<string, unknown> = {};
         if (input.supportThreshold) options.support_threshold = input.supportThreshold;
+        if (input.verdictOnly) options.verdict_only = true;
 
         return this.requestWithRetry<BullyingResult>(
             'POST',
@@ -655,10 +659,9 @@ export class Tuteliq {
      * Detect grooming patterns in a conversation
      *
      * Branching guidance: `grooming_risk: "low"` is a monitor-only signal — do
-     * not treat it as actionable. For production branching prefer
-     * `result.normalized.actionable` (true iff level is medium / high / critical)
-     * or `result.recommended_action` (`flag_for_moderator` /
-     * `immediate_intervention`).
+     * not treat it as actionable. For production branching use
+     * `result.recommended_action` (`flag_for_review` / `block` /
+     * `immediate_intervention`), or the `isActionable` helper.
      *
      * @example
      * ```typescript
@@ -670,8 +673,8 @@ export class Tuteliq {
      *   childAge: 12
      * })
      *
-     * // Recommended: branch on normalized.actionable or recommended_action
-     * if (result.normalized?.actionable) {
+     * // Recommended: branch on recommended_action
+     * if (isActionable(result.recommended_action)) {
      *   console.log('Flags:', result.flags)
      * }
      * ```
@@ -681,6 +684,7 @@ export class Tuteliq {
 
         const options: Record<string, unknown> = {};
         if (input.supportThreshold) options.support_threshold = input.supportThreshold;
+        if (input.verdictOnly) options.verdict_only = true;
 
         return this.requestWithRetry<GroomingResult>(
             'POST',
@@ -711,9 +715,9 @@ export class Tuteliq {
      *
      * Branching guidance: the top-level `unsafe` boolean fires whenever the
      * model observes ANY signal — including low-severity monitor-only cases
-     * (e.g. "today was the worst" / venting). For production branching prefer
-     * `result.normalized.actionable` (true iff level is medium / high /
-     * critical) or `result.recommended_action`.
+     * (e.g. "today was the worst" / venting). For production branching use
+     * `result.recommended_action` (`flag_for_review` / `block` /
+     * `immediate_intervention`), or the `isActionable` helper.
      *
      * @example
      * ```typescript
@@ -721,8 +725,8 @@ export class Tuteliq {
      *   content: "I want to hurt myself"
      * })
      *
-     * // Recommended: branch on normalized.actionable or recommended_action
-     * if (result.normalized?.actionable && result.categories.includes('self_harm')) {
+     * // Recommended: branch on recommended_action
+     * if (isActionable(result.recommended_action) && result.categories.includes('self_harm')) {
      *   console.log('Show crisis resources')
      * }
      * ```
@@ -732,6 +736,7 @@ export class Tuteliq {
 
         const options: Record<string, unknown> = {};
         if (input.supportThreshold) options.support_threshold = input.supportThreshold;
+        if (input.verdictOnly) options.verdict_only = true;
 
         return this.requestWithRetry<UnsafeResult>(
             'POST',
@@ -838,18 +843,17 @@ export class Tuteliq {
             ? findings.join('. ')
             : 'No safety concerns detected.';
 
-        // Determine recommended action
-        let recommended_action = 'none';
-        if (bullyingResult?.recommended_action === 'immediate_intervention' ||
-            unsafeResult?.recommended_action === 'immediate_intervention') {
-            recommended_action = 'immediate_intervention';
-        } else if (bullyingResult?.recommended_action === 'flag_for_moderator' ||
-            unsafeResult?.recommended_action === 'flag_for_moderator') {
-            recommended_action = 'flag_for_moderator';
-        } else if (bullyingResult?.recommended_action === 'monitor' ||
-            unsafeResult?.recommended_action === 'monitor') {
-            recommended_action = 'monitor';
-        }
+        // Combined action = the strongest of the sub-results.
+        //
+        // Previously this was a hand-written if/else chain matching literal
+        // strings, one of which (`flag_for_moderator`) the API never emitted —
+        // so a moderator-worthy verdict silently aggregated to `none`. Ranking
+        // over the shared enum means a value that is not recognised can no
+        // longer be dropped on the floor.
+        const recommended_action = strongestAction([
+            bullyingResult?.recommended_action,
+            unsafeResult?.recommended_action,
+        ]);
 
         return {
             risk_level,
@@ -1862,6 +1866,7 @@ export class Tuteliq {
         const options: Record<string, unknown> = {};
         if (input.includeEvidence) options.include_evidence = true;
         if (input.supportThreshold) options.support_threshold = input.supportThreshold;
+        if (input.verdictOnly) options.verdict_only = true;
 
         return this.requestWithRetry<AnalyseMultiResult>(
             'POST', '/api/v1/analyse/multi',

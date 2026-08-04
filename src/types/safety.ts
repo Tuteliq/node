@@ -9,6 +9,84 @@ import { MessageAnalysis } from './detection.js';
 export { Severity, GroomingRisk };
 
 /**
+ * The action Tuteliq recommends, as a fixed set of values ordered weakest to
+ * strongest. This is the field to branch on: it is stable across releases and
+ * safe to `switch` over.
+ *
+ * - `none` — no signal
+ * - `monitor` — log it, no human needed
+ * - `flag_for_review` — queue for a moderator
+ * - `block` — withhold or limit the content
+ * - `immediate_intervention` — crisis path
+ *
+ * Human-readable guidance lives in `action_detail`, never here.
+ */
+export type RecommendedAction =
+    | 'none'
+    | 'monitor'
+    | 'flag_for_review'
+    | 'block'
+    | 'immediate_intervention';
+
+/** Weakest to strongest. Used to compare and combine actions. */
+const ACTION_RANK: Record<RecommendedAction, number> = {
+    none: 0,
+    monitor: 1,
+    flag_for_review: 2,
+    block: 3,
+    immediate_intervention: 4,
+};
+
+/**
+ * True when the verdict warrants a human looking at it, i.e. `flag_for_review`
+ * or stronger. Use this instead of branching on the bare presence of a signal:
+ * `is_bullying` / `unsafe` / a `low` grooming risk all fire on monitor-only
+ * cases and will over-alert.
+ */
+export function isActionable(action: RecommendedAction | undefined): boolean {
+    return action !== undefined && ACTION_RANK[action] >= ACTION_RANK.flag_for_review;
+}
+
+/**
+ * Spellings older API versions used for the same rungs. The SDK and the API
+ * are released separately, so a current SDK will talk to an older deployment
+ * during a rollout. Mapping these rather than ignoring them keeps a
+ * moderator-worthy verdict from being silently downgraded across that window.
+ */
+const LEGACY_ALIASES: Record<string, RecommendedAction> = {
+    no_action: 'none',
+    flag_for_moderator: 'flag_for_review',
+};
+
+/**
+ * Normalise a value from the API into the canonical enum. Returns `undefined`
+ * for anything unrecognised, so callers can decide how to treat it.
+ */
+export function toRecommendedAction(value: unknown): RecommendedAction | undefined {
+    if (typeof value !== 'string') return undefined;
+    if (value in ACTION_RANK) return value as RecommendedAction;
+    return LEGACY_ALIASES[value];
+}
+
+/**
+ * The strongest action among the given values. Absent values are skipped and
+ * legacy spellings are mapped; a value that cannot be recognised at all is
+ * treated as `flag_for_review` rather than discarded, so an unfamiliar verdict
+ * from a newer API reaches a human instead of vanishing.
+ */
+export function strongestAction(
+    actions: Array<RecommendedAction | string | undefined>,
+): RecommendedAction {
+    let best: RecommendedAction = 'none';
+    for (const raw of actions) {
+        if (raw === undefined || raw === null) continue;
+        const action = toRecommendedAction(raw) ?? 'flag_for_review';
+        if (ACTION_RANK[action] > ACTION_RANK[best]) best = action;
+    }
+    return best;
+}
+
+/**
  * Context type - can be a string shorthand or detailed object
  */
 export type ContextInput = string | {
@@ -36,6 +114,15 @@ export interface DetectBullyingInput extends TrackingFields {
     /** Minimum severity to show crisis support resources (default: 'high'). Critical always shows. */
     supportThreshold?: 'low' | 'medium' | 'high' | 'critical';
     /**
+     * Fast mode. When true, the response omits the per-message
+     * `message_analysis` breakdown and returns only the conversation-level
+     * verdict (risk level, flags, recommended action). Lower latency and a
+     * smaller payload — use it to screen live chat in real time, then re-run
+     * flagged content in standard mode for the full breakdown. The verdict
+     * itself is unchanged.
+     */
+    verdictOnly?: boolean;
+    /**
      * Opaque signed token returned by a prior /bullying call. Carries derived
      * conversation-trajectory state (category counts, severity history) into
      * the next call without storing any user content server-side. Pass back
@@ -60,8 +147,16 @@ export interface BullyingResult {
     severity: Severity;
     /** Explanation of the analysis */
     rationale: string;
-    /** Recommended action to take */
-    recommended_action: string;
+    /**
+     * Recommended action, as a stable enum. Branch on this (or `isActionable`)
+     * rather than on the bare presence of a signal.
+     */
+    recommended_action: RecommendedAction;
+    /**
+     * Optional human-readable expansion of `recommended_action`, for display in
+     * a moderator UI. Free text: do not branch on it.
+     */
+    action_detail?: string;
     /** Risk score (0-1) */
     risk_score: number;
     /** Language code used for analysis */
@@ -120,6 +215,15 @@ export interface DetectGroomingInput extends TrackingFields {
     /** Minimum severity to show crisis support resources (default: 'high'). Critical always shows. */
     supportThreshold?: 'low' | 'medium' | 'high' | 'critical';
     /**
+     * Fast mode. When true, the response omits the per-message
+     * `message_analysis` breakdown and returns only the conversation-level
+     * verdict (grooming risk, flags, recommended action). Lower latency and a
+     * smaller payload — ideal for screening live chat in real time, then
+     * re-running flagged conversations in standard mode for the full
+     * per-message trajectory. The verdict itself is unchanged.
+     */
+    verdictOnly?: boolean;
+    /**
      * Opaque signed token returned by a prior /grooming call. Carries derived
      * conversation-trajectory state (category counts, severity history) into
      * the next call without storing any user content server-side. Pass back
@@ -146,8 +250,16 @@ export interface GroomingResult {
     rationale: string;
     /** Risk score (0-1) */
     risk_score: number;
-    /** Recommended action to take */
-    recommended_action: string;
+    /**
+     * Recommended action, as a stable enum. Branch on this (or `isActionable`)
+     * rather than on the bare presence of a signal.
+     */
+    recommended_action: RecommendedAction;
+    /**
+     * Optional human-readable expansion of `recommended_action`, for display in
+     * a moderator UI. Free text: do not branch on it.
+     */
+    action_detail?: string;
     /** Per-message analysis (conversation-aware endpoints) */
     message_analysis?: MessageAnalysis[];
     /** Language code used for analysis */
@@ -183,6 +295,12 @@ export interface DetectUnsafeInput extends TrackingFields {
     context?: ContextInput;
     /** Minimum severity to show crisis support resources (default: 'high'). Critical always shows. */
     supportThreshold?: 'low' | 'medium' | 'high' | 'critical';
+    /**
+     * Fast mode. When true, the response omits any per-message
+     * `message_analysis` breakdown and returns only the verdict. Lower latency
+     * and a smaller payload for real-time screening; the verdict is unchanged.
+     */
+    verdictOnly?: boolean;
 }
 
 export interface UnsafeResult {
@@ -200,8 +318,16 @@ export interface UnsafeResult {
     risk_level?: 'none' | 'low' | 'medium' | 'high' | 'critical';
     /** Explanation of the analysis */
     rationale: string;
-    /** Recommended action to take */
-    recommended_action: string;
+    /**
+     * Recommended action, as a stable enum. Branch on this (or `isActionable`)
+     * rather than on the bare presence of a signal.
+     */
+    recommended_action: RecommendedAction;
+    /**
+     * Optional human-readable expansion of `recommended_action`, for display in
+     * a moderator UI. Free text: do not branch on it.
+     */
+    action_detail?: string;
     /** Language code used for analysis */
     language?: string;
     /** Language support maturity */
@@ -242,8 +368,8 @@ export interface AnalyzeResult {
     bullying?: BullyingResult;
     /** Unsafe content result (if included) */
     unsafe?: UnsafeResult;
-    /** Combined recommended action */
-    recommended_action: string;
+    /** Strongest recommended action across the included sub-results. */
+    recommended_action: RecommendedAction;
     /** Number of credits consumed by this request */
     credits_used?: number;
     /** Echo of provided external_id (if any) */

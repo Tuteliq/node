@@ -208,7 +208,7 @@ describe('Tuteliq', () => {
                 is_bullying: true,
                 severity: 'high',
                 risk_score: 0.8,
-                recommended_action: 'flag_for_moderator',
+                recommended_action: 'flag_for_review',
             };
             const unsafeResponse = {
                 unsafe: false,
@@ -226,7 +226,53 @@ describe('Tuteliq', () => {
             expect(result.risk_level).toBe('high');
             expect(result.risk_score).toBe(0.8);
             expect(result.summary).toContain('Bullying detected');
-            expect(result.recommended_action).toBe('flag_for_moderator');
+            expect(result.recommended_action).toBe('flag_for_review');
+        });
+
+        // Regression: this assertion previously used `flag_for_moderator`, a
+        // value the API has never emitted, so the aggregation silently resolved
+        // to `none` for every real moderator-worthy verdict. Older deployments
+        // may still send the legacy spelling during a rollout, so it must be
+        // mapped rather than dropped.
+        it('maps the legacy flag_for_moderator spelling', async () => {
+            vi.spyOn(global, 'fetch')
+                .mockResolvedValueOnce(mockFetchResponse({
+                    is_bullying: true,
+                    severity: 'high',
+                    risk_score: 0.8,
+                    recommended_action: 'flag_for_moderator',
+                }))
+                .mockResolvedValueOnce(mockFetchResponse({
+                    unsafe: false,
+                    categories: [],
+                    risk_score: 0.2,
+                    recommended_action: 'no_action',
+                }));
+
+            const result = await tuteliq.analyze('test message');
+
+            expect(result.recommended_action).toBe('flag_for_review');
+        });
+
+        it('escalates rather than drops an unrecognised action', async () => {
+            vi.spyOn(global, 'fetch')
+                .mockResolvedValueOnce(mockFetchResponse({
+                    is_bullying: true,
+                    severity: 'high',
+                    risk_score: 0.8,
+                    recommended_action: 'some_future_verdict',
+                }))
+                .mockResolvedValueOnce(mockFetchResponse({
+                    unsafe: false,
+                    categories: [],
+                    risk_score: 0.2,
+                    recommended_action: 'none',
+                }));
+
+            const result = await tuteliq.analyze('test message');
+
+            // fail towards a human, never towards silence
+            expect(result.recommended_action).toBe('flag_for_review');
         });
 
         it('should return critical for very high risk scores', async () => {

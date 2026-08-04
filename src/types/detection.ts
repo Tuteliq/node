@@ -1,5 +1,5 @@
 import { TrackingFields } from './index.js';
-import { ContextInput } from './safety.js';
+import { ContextInput, RecommendedAction } from './safety.js';
 import { LanguageStatus } from '../constants.js';
 
 export { LanguageStatus };
@@ -23,6 +23,13 @@ export interface DetectionInput extends TrackingFields {
     includeEvidence?: boolean;
     /** Minimum severity to show crisis support resources (default: 'high'). Critical always shows. */
     supportThreshold?: 'low' | 'medium' | 'high' | 'critical';
+    /**
+     * Fast mode. When true, the response omits the per-message
+     * `message_analysis` breakdown and returns only the verdict (level,
+     * categories, recommended action). Lower latency and a smaller payload for
+     * real-time screening; the verdict itself is unchanged.
+     */
+    verdictOnly?: boolean;
 }
 
 /**
@@ -97,8 +104,17 @@ export interface DetectionResult {
     evidence?: DetectionEvidence[];
     /** Age calibration details */
     age_calibration?: AgeCalibration;
-    /** Recommended action */
-    recommended_action: string;
+    /**
+     * Recommended action, as a stable enum ordered weakest to strongest:
+     * `none`, `monitor`, `flag_for_review`, `block`, `immediate_intervention`.
+     * Safe to switch on. Human-readable guidance is in `action_detail`.
+     */
+    recommended_action: RecommendedAction;
+    /**
+     * Optional human-readable expansion of `recommended_action`, for display in
+     * a moderator UI. Free text: do not branch on it.
+     */
+    action_detail?: string;
     /** Explanation of the analysis */
     rationale: string;
     /** Per-message analysis (conversation-aware endpoints) */
@@ -137,6 +153,12 @@ export interface AnalyseMultiInput extends TrackingFields {
     includeEvidence?: boolean;
     /** Minimum severity to show crisis support resources (default: 'high'). Critical always shows. */
     supportThreshold?: 'low' | 'medium' | 'high' | 'critical';
+    /**
+     * Fast mode. When true, individual endpoint results omit their per-message
+     * `message_analysis` breakdown and return only the verdict. Lower latency
+     * and a smaller payload for real-time screening.
+     */
+    verdictOnly?: boolean;
 }
 
 /**

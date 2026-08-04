@@ -46,6 +46,7 @@ export type {
     ApiError,
 
     // Safety types
+    RecommendedAction,
     ContextInput,
     DetectBullyingInput,
     BullyingResult,
@@ -264,3 +265,7 @@ export type * from './types/intelligence.js';
 
 // Re-export ContentSeverity from constants
 export { ContentSeverity } from './constants.js';
+
+// Action helpers (v2.17.0). `recommended_action` is the routing key to branch
+// on; these are the runtime helpers for reading and combining it.
+export { isActionable, strongestAction, toRecommendedAction } from './types/safety.js';
