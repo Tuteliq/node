@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.19.0] - 2026-08-04
+
+### Added
+
+- **Synthetic-content and document results are typed to the action enum** — `SyntheticTextResult`, `SyntheticImageResult`, `SyntheticAudioResult`, `SyntheticVideoResult` and `DocumentPageEndpointResult` declared `recommended_action` as `string` and had no `action_detail`. They are standalone interfaces, so they missed the 2.18.0 change. Every detection result across the SDK now carries `recommended_action: RecommendedAction` and optional `action_detail`.
+
+### Changed
+
+- **A `medium` verdict now always returns `flag_for_review`** — the API previously let the model choose between `monitor` and `flag_for_review` at medium, so identical input could land on either side of the "a human should see this" line. The removed `normalized.actionable` field treated medium as actionable, so pinning it keeps alerting parity for anyone migrating off that field. If you want a tighter filter than medium, branch on `risk_score` or the level rather than `recommended_action`.
+
 ## [2.18.0] - 2026-08-04
 
 ### Added

@@ -334,8 +334,16 @@ export interface DocumentPageEndpointResult {
     categories: Array<{ tag: string; label: string; confidence: number }>;
     /** Evidence excerpts */
     evidence: Array<{ text: string; tactic: string; weight: number }>;
-    /** Recommended action */
-    recommended_action: string;
+    /**
+     * Recommended action for this endpoint on this page, as a stable enum.
+     * Safe to switch on; human guidance is in `action_detail`.
+     */
+    recommended_action: RecommendedAction;
+    /**
+     * Optional human-readable expansion of `recommended_action`, for a
+     * moderator UI. Free text: do not branch on it.
+     */
+    action_detail?: string;
     /** Human-readable rationale */
     rationale: string;
     /** Detected language */

@@ -1,5 +1,5 @@
 import { TrackingFields } from './index.js';
-import { ContextInput } from './safety.js';
+import { ContextInput, RecommendedAction } from './safety.js';
 import { DetectionCategory, DetectionEvidence, AgeCalibration } from './detection.js';
 import { TranscriptionResult } from './media.js';
 
@@ -56,8 +56,16 @@ export interface SyntheticTextResult {
     evidence?: DetectionEvidence[];
     /** Age calibration details */
     age_calibration?: AgeCalibration;
-    /** Recommended action */
-    recommended_action: string;
+    /**
+     * Recommended action, as a stable enum ordered weakest to strongest.
+     * Safe to switch on; human guidance is in `action_detail`.
+     */
+    recommended_action: RecommendedAction;
+    /**
+     * Optional human-readable expansion of `recommended_action`, for a
+     * moderator UI. Free text: do not branch on it.
+     */
+    action_detail?: string;
     /** Human-readable rationale */
     rationale: string;
     /** Processing time in milliseconds */
@@ -186,8 +194,16 @@ export interface SyntheticImageResult {
     categories: DetectionCategory[];
     /** Evidence excerpts */
     evidence?: DetectionEvidence[];
-    /** Recommended action */
-    recommended_action: string;
+    /**
+     * Recommended action, as a stable enum ordered weakest to strongest.
+     * Safe to switch on; human guidance is in `action_detail`.
+     */
+    recommended_action: RecommendedAction;
+    /**
+     * Optional human-readable expansion of `recommended_action`, for a
+     * moderator UI. Free text: do not branch on it.
+     */
+    action_detail?: string;
     /** Human-readable rationale */
     rationale: string;
     /** Input type */
@@ -270,8 +286,16 @@ export interface SyntheticAudioResult {
     risk_score: number;
     /** Detected categories */
     categories: DetectionCategory[];
-    /** Recommended action */
-    recommended_action: string;
+    /**
+     * Recommended action, as a stable enum ordered weakest to strongest.
+     * Safe to switch on; human guidance is in `action_detail`.
+     */
+    recommended_action: RecommendedAction;
+    /**
+     * Optional human-readable expansion of `recommended_action`, for a
+     * moderator UI. Free text: do not branch on it.
+     */
+    action_detail?: string;
     /** Human-readable rationale */
     rationale: string;
     /** Input type */
@@ -368,8 +392,16 @@ export interface SyntheticVideoResult {
     risk_score: number;
     /** Detected categories */
     categories: DetectionCategory[];
-    /** Recommended action */
-    recommended_action: string;
+    /**
+     * Recommended action, as a stable enum ordered weakest to strongest.
+     * Safe to switch on; human guidance is in `action_detail`.
+     */
+    recommended_action: RecommendedAction;
+    /**
+     * Optional human-readable expansion of `recommended_action`, for a
+     * moderator UI. Free text: do not branch on it.
+     */
+    action_detail?: string;
     /** Human-readable rationale */
     rationale: string;
     /** Input type */
