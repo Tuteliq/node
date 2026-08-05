@@ -1,5 +1,5 @@
 // Main export
-export { Tuteliq, TuteliqClient } from './client.js';
+export { Tuteliq, TuteliqClient, mimeTypeForFilename } from './client.js';
 
 // Constants and enums export
 export {

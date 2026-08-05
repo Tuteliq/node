@@ -192,6 +192,42 @@ const MAX_MESSAGES_COUNT = 100;    // Max messages per request
  * console.log(tuteliq.usage) // { limit: 10000, used: 5234, remaining: 4766 }
  * ```
  */
+
+/**
+ * MIME type for an upload, derived from its filename.
+ *
+ * `new Blob([buffer])` carries no type, so the multipart part goes out as
+ * application/octet-stream and the API rejects it against its per-endpoint
+ * allowlist — which broke every Buffer upload, i.e. the documented
+ * `readFileSync(...)` pattern. Only pre-typed Blob/File inputs worked.
+ *
+ * Type also decides behaviour, not just admission: image/gif tells the API to
+ * decode the animation and analyse its frames rather than treat it as a still.
+ */
+const UPLOAD_MIME_TYPES: Record<string, string> = {
+    // images
+    png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg',
+    gif: 'image/gif', webp: 'image/webp',
+    // audio
+    mp3: 'audio/mpeg', wav: 'audio/wav', m4a: 'audio/m4a',
+    ogg: 'audio/ogg', flac: 'audio/flac',
+    // video
+    mp4: 'video/mp4', webm: 'video/webm', mov: 'video/quicktime', avi: 'video/x-msvideo',
+    // documents
+    pdf: 'application/pdf',
+};
+
+export function mimeTypeForFilename(filename: string): string | undefined {
+    const ext = filename.toLowerCase().split('.').pop();
+    return ext ? UPLOAD_MIME_TYPES[ext] : undefined;
+}
+
+/** Blob for an upload, typed from the filename so the API accepts it. */
+function typedBlob(file: Buffer, filename: string): Blob {
+    const type = mimeTypeForFilename(filename);
+    return new Blob([file as unknown as BlobPart], type ? { type } : undefined);
+}
+
 export class Tuteliq {
     private readonly apiKey: string;
     private readonly timeout: number;
@@ -1631,7 +1667,7 @@ export class Tuteliq {
         const formData = new FormData();
 
         if (Buffer.isBuffer(input.file)) {
-            formData.append('file', new Blob([input.file as unknown as BlobPart]), input.filename);
+            formData.append('file', typedBlob(input.file, input.filename), input.filename);
         } else {
             formData.append('file', input.file, input.filename);
         }
@@ -1687,7 +1723,7 @@ export class Tuteliq {
         const formData = new FormData();
 
         if (Buffer.isBuffer(input.file)) {
-            formData.append('file', new Blob([input.file as unknown as BlobPart]), input.filename);
+            formData.append('file', typedBlob(input.file, input.filename), input.filename);
         } else {
             formData.append('file', input.file, input.filename);
         }
@@ -1918,7 +1954,7 @@ export class Tuteliq {
         const formData = new FormData();
 
         if (Buffer.isBuffer(input.file)) {
-            formData.append('file', new Blob([input.file as unknown as BlobPart]), input.filename);
+            formData.append('file', typedBlob(input.file, input.filename), input.filename);
         } else {
             formData.append('file', input.file, input.filename);
         }
@@ -1976,7 +2012,7 @@ export class Tuteliq {
         const formData = new FormData();
 
         if (Buffer.isBuffer(input.file)) {
-            formData.append('file', new Blob([input.file as unknown as BlobPart]), input.filename);
+            formData.append('file', typedBlob(input.file, input.filename), input.filename);
         } else {
             formData.append('file', input.file, input.filename);
         }
@@ -2305,7 +2341,7 @@ export class Tuteliq {
         const formData = new FormData();
 
         if (Buffer.isBuffer(input.file)) {
-            formData.append('file', new Blob([input.file as unknown as BlobPart]), input.filename);
+            formData.append('file', typedBlob(input.file, input.filename), input.filename);
         } else {
             formData.append('file', input.file, input.filename);
         }
@@ -2358,7 +2394,7 @@ export class Tuteliq {
         const formData = new FormData();
 
         if (Buffer.isBuffer(input.file)) {
-            formData.append('file', new Blob([input.file as unknown as BlobPart]), input.filename);
+            formData.append('file', typedBlob(input.file, input.filename), input.filename);
         } else {
             formData.append('file', input.file, input.filename);
         }
@@ -2412,7 +2448,7 @@ export class Tuteliq {
         const formData = new FormData();
 
         if (Buffer.isBuffer(input.file)) {
-            formData.append('file', new Blob([input.file as unknown as BlobPart]), input.filename);
+            formData.append('file', typedBlob(input.file, input.filename), input.filename);
         } else {
             formData.append('file', input.file, input.filename);
         }

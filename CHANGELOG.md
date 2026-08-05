@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.21.0] - 2026-08-05
+
+### Fixed
+
+- **Every Buffer upload was rejected by the API** — `analyzeImage`, `analyzeVoice`, `analyzeVideo`, `analyzeDocument`, `detectSyntheticImage`, `detectSyntheticAudio` and `detectSyntheticVideo` wrapped the buffer in `new Blob([file])`, which carries no MIME type. The multipart part therefore went out as `application/octet-stream` and the API rejected it against its per-endpoint allowlist (`Unsupported image type: application/octet-stream`). This broke the documented `readFileSync(...)` pattern for all seven methods; only pre-typed `Blob`/`File` inputs (the browser path) worked. The type is now derived from the filename.
+
+  The type also decides behaviour, not just admission: `image/gif` is what tells the API to decode an animated GIF and analyse its frames rather than treat it as a still, so an untyped upload would have silently got first-frame-only handling even if it had been accepted.
+
+### Added
+
+- **`mimeTypeForFilename(filename)`** — exported helper returning the MIME type the SDK will send for a given filename, or `undefined` for an unrecognised extension. Covers png, jpg/jpeg, gif, webp, mp3, wav, m4a, ogg, flac, mp4, webm, mov, avi and pdf.
+
+### Note
+
+- Animated GIFs are now analysed frame by frame by `/safety/image` (up to 4 evenly-spaced frames, first and last always included) rather than failing. Send the original GIF instead of flattening it to a still; a still only ever exposes the first frame. Cost is unchanged at image rates. Requires the API deployed on or after 2026-08-05.
+
 ## [2.20.0] - 2026-08-04
 
 ### Added
