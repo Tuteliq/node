@@ -100,8 +100,20 @@ export interface ReviewIncidentInput {
     new_risk_level?: string;
     /** New category (required for `reclassify`). */
     new_risk_category?: string;
-    /** Opaque deployer-side moderator id. Surfaces in the audit receipt for the deployer's correlation. */
-    moderator_external_id?: string;
+    /**
+     * Identifier of the moderator making the decision. **Required.**
+     *
+     * The audit trail has to be able to attribute a decision, and an optional
+     * attribution field is one that gets omitted. Use a stable per-moderator
+     * identifier, not the account owner id: passing the owner attributes every
+     * decision to the same person and the trail stops being useful for the
+     * purpose it exists for.
+     *
+     * When calling with an MCP token this must be `mcp:<agent-name>`. The API
+     * rejects an `mcp:` prefix from any other credential, and rejects its
+     * absence from an MCP one, so human and agent decisions cannot be confused.
+     */
+    moderator_external_id: string;
     /** Retention class for the resulting audit receipt; defaults to limited-risk. */
     retention_class?: RetentionClass;
 }
