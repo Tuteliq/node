@@ -64,7 +64,22 @@ export interface AuditReceipt {
 // Art 14 moderator override
 // =============================================================================
 
-export type ModeratorAction = 'confirm' | 'downgrade' | 'escalate' | 'reclassify' | 'dismiss';
+/**
+ * Moderator actions accepted by /incidents/:id/review.
+ *
+ * Mirrors ModeratorAction in the API. `escalate` sets status `escalated`;
+ * `resolve` sets `resolved` and stamps `resolved_at`, which drives the
+ * turnaround-time metric, and marks linked notifications read; `reopen`
+ * returns the incident to `new` while preserving `resolved_at` as history.
+ */
+export type ModeratorAction =
+    | 'confirm'
+    | 'downgrade'
+    | 'escalate'
+    | 'reclassify'
+    | 'dismiss'
+    | 'resolve'
+    | 'reopen';
 
 export type ModeratorReasonCode =
     | 'confirmed_accurate'
