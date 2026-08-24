@@ -19,15 +19,23 @@ export interface DetectionInput extends TrackingFields {
     content: string;
     /** Context for better analysis */
     context?: ContextInput;
-    /** Include evidence excerpts in the response */
+    /**
+     * Include evidence excerpts in the response. Default: true. Explicitly
+     * setting this always wins over the inference `verdictOnly` makes below —
+     * pass `includeEvidence: true` alongside `verdictOnly: true` if you want
+     * fast mode's other savings without losing evidence.
+     */
     includeEvidence?: boolean;
     /** Minimum severity to show crisis support resources (default: 'high'). Critical always shows. */
     supportThreshold?: 'low' | 'medium' | 'high' | 'critical';
     /**
-     * Fast mode. When true, the response omits the per-message
-     * `message_analysis` breakdown and returns only the verdict (level,
-     * categories, recommended action). Lower latency and a smaller payload for
-     * real-time screening; the verdict itself is unchanged.
+     * Fast mode. When true and `includeEvidence` isn't explicitly set, this
+     * also implies `includeEvidence: false` — `evidence` (with quoted
+     * excerpts from the input) is the expensive field on these endpoints,
+     * the equivalent of `action_detail` on the safety endpoints. The response
+     * also omits the per-message `message_analysis` breakdown. `rationale`
+     * and the verdict itself (level, categories, recommended action) are
+     * always generated regardless of this flag.
      */
     verdictOnly?: boolean;
     /**
@@ -110,7 +118,11 @@ export interface DetectionResult {
     level: 'none' | 'low' | 'medium' | 'high' | 'critical';
     /** Detected categories */
     categories: DetectionCategory[];
-    /** Evidence excerpts (if include_evidence was true) */
+    /**
+     * Evidence excerpts, with quoted spans from the input. Omitted when
+     * `includeEvidence` is false, including implicitly via `verdictOnly`
+     * (see `DetectionInput.verdictOnly`).
+     */
     evidence?: DetectionEvidence[];
     /** Age calibration details */
     age_calibration?: AgeCalibration;
@@ -125,9 +137,14 @@ export interface DetectionResult {
      * a moderator UI. Free text: do not branch on it.
      */
     action_detail?: string;
-    /** Explanation of the analysis */
+    /**
+     * Explanation of the analysis — this is what a moderator reads to triage
+     * the incident, and always generated, regardless of `verdictOnly` or
+     * `includeEvidence`.
+     */
     rationale?: string;
-    /** Per-message analysis (conversation-aware endpoints) */
+    /** Per-message analysis (conversation-aware endpoints). Omitted when
+     *  `verdictOnly` is set. */
     message_analysis?: MessageAnalysis[];
     /** Language code used for analysis */
     language: string;

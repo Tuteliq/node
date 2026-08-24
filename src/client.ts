@@ -401,15 +401,24 @@ export class Tuteliq {
      * Build request body for unified detection endpoints
      */
     private buildDetectionBody(input: DetectionInput): Record<string, unknown> {
+        // `includeEvidence` must be forwarded on BOTH true and false — a
+        // truthy-only check (the previous `if (input.includeEvidence)`)
+        // silently dropped an explicit `includeEvidence: false`, so the
+        // caller's choice to exclude evidence never reached the API at all.
+        // Leaving the field out entirely (the `undefined` case) is
+        // deliberate: it lets the server apply its own default, which is
+        // "true" normally but "false" when `verdictOnly` is set — see
+        // `DetectionInput.verdictOnly`. Replicating that inference here too
+        // would just be a second place for the two to drift apart.
         const options: Record<string, unknown> = {};
         if (input.supportThreshold) options.support_threshold = input.supportThreshold;
-        if (input.includeEvidence) options.include_evidence = true;
+        if (input.includeEvidence !== undefined) options.include_evidence = input.includeEvidence;
         if (input.verdictOnly) options.verdict_only = true;
 
         return {
             text: input.content,
             context: this.normalizeContext(input.context),
-            ...(input.includeEvidence && { include_evidence: true }),
+            ...(input.includeEvidence !== undefined && { include_evidence: input.includeEvidence }),
             // Every unified detection endpoint accepts these (see the shared
             // body schema); coercive-control, vulnerability-exploitation and
             // distress-signals additionally issue a fresh token back.

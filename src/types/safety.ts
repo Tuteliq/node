@@ -213,7 +213,10 @@ export interface BullyingResult {
     confidence: number;
     /** Severity of the bullying */
     severity: Severity;
-    /** Explanation of the analysis. Omitted when `verdictOnly` was set. */
+    /**
+     * Explanation of the analysis — this is what a moderator reads to triage
+     * the incident, and always generated, including when `verdictOnly` is set.
+     */
     rationale?: string;
     /**
      * Recommended action, as a stable enum. Branch on this (or `isActionable`)
@@ -222,7 +225,8 @@ export interface BullyingResult {
     recommended_action: RecommendedAction;
     /**
      * Optional human-readable expansion of `recommended_action`, for display in
-     * a moderator UI. Free text: do not branch on it.
+     * a moderator UI. Free text: do not branch on it. Omitted when
+     * `verdictOnly` is set — this is the field fast mode cuts, not `rationale`.
      */
     action_detail?: string;
     /** Risk score (0-1) */
@@ -353,8 +357,11 @@ export interface GroomingResult {
     confidence: number;
     /** Grooming indicators/flags detected */
     flags: string[];
-    /** Explanation of the analysis. Omitted when `verdictOnly` was set. */
-    rationale?: string;
+    /**
+     * Explanation of the analysis — this is what a moderator reads to triage
+     * the incident, and always generated, including when `verdictOnly` is set.
+     */
+    rationale: string;
     /** Risk score (0-1) */
     risk_score: number;
     /**
@@ -364,10 +371,12 @@ export interface GroomingResult {
     recommended_action: RecommendedAction;
     /**
      * Optional human-readable expansion of `recommended_action`, for display in
-     * a moderator UI. Free text: do not branch on it.
+     * a moderator UI. Free text: do not branch on it. Omitted when
+     * `verdictOnly` is set.
      */
     action_detail?: string;
-    /** Per-message analysis (conversation-aware endpoints) */
+    /** Per-message analysis (conversation-aware endpoints). Omitted when
+     *  `verdictOnly` is set. */
     message_analysis?: MessageAnalysis[];
     /** Language code used for analysis */
     language?: string;
@@ -460,7 +469,10 @@ export interface UnsafeResult {
     risk_score: number;
     /** Risk level derived from risk_score */
     risk_level?: 'none' | 'low' | 'medium' | 'high' | 'critical';
-    /** Explanation of the analysis. Omitted when `verdictOnly` was set. */
+    /**
+     * Explanation of the analysis — this is what a moderator reads to triage
+     * the incident, and always generated, including when `verdictOnly` is set.
+     */
     rationale?: string;
     /**
      * Recommended action, as a stable enum. Branch on this (or `isActionable`)
@@ -469,7 +481,8 @@ export interface UnsafeResult {
     recommended_action: RecommendedAction;
     /**
      * Optional human-readable expansion of `recommended_action`, for display in
-     * a moderator UI. Free text: do not branch on it.
+     * a moderator UI. Free text: do not branch on it. Omitted when
+     * `verdictOnly` is set — this is the field fast mode cuts, not `rationale`.
      */
     action_detail?: string;
     /** Language code used for analysis */
@@ -504,10 +517,12 @@ export interface AnalyzeInput extends TrackingFields {
     include?: Array<'bullying' | 'unsafe'>;
     /**
      * Fast mode, forwarded to each detector this call fans out to. The
-     * bullying and unsafe endpoints skip generating `rationale` — the only
-     * free-text field either produces — which cuts response size and latency.
-     * The verdict (severity, categories, recommended_action, risk_score) is
-     * unchanged, as is the combined `risk_level` this method derives.
+     * bullying and unsafe endpoints skip generating `action_detail` — the
+     * moderator-guidance expansion of `recommended_action` — which cuts
+     * response size and latency. `rationale`, the field a moderator actually
+     * reads to triage an incident, is always generated regardless of this
+     * flag. The verdict (severity, categories, recommended_action, risk_score)
+     * is unchanged, as is the combined `risk_level` this method derives.
      *
      * Because the sub-calls run in parallel, the saving here is the difference
      * on the slower detector rather than the full per-call saving.
