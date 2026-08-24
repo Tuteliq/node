@@ -384,6 +384,7 @@ export class Tuteliq {
             ...(input.external_id && { external_id: input.external_id }),
             ...(input.customer_id && { customer_id: input.customer_id }),
             ...(input.metadata && { metadata: input.metadata }),
+            ...(input.incident_moderation_enabled !== undefined && { incident_moderation_enabled: input.incident_moderation_enabled }),
             ...(Object.keys(options).length > 0 && { options }),
         };
     }
@@ -684,6 +685,7 @@ export class Tuteliq {
                 ...(input.external_id && { external_id: input.external_id }),
                 ...(input.customer_id && { customer_id: input.customer_id }),
                 ...(input.metadata && { metadata: input.metadata }),
+                ...(input.incident_moderation_enabled !== undefined && { incident_moderation_enabled: input.incident_moderation_enabled }),
                 ...(input.continuationToken && { continuation_token: input.continuationToken }),
                 ...(input.resetConversation && { reset_conversation: true }),
                 ...(Object.keys(options).length > 0 && { options }),
@@ -739,6 +741,7 @@ export class Tuteliq {
                 ...(input.external_id && { external_id: input.external_id }),
                 ...(input.customer_id && { customer_id: input.customer_id }),
                 ...(input.metadata && { metadata: input.metadata }),
+                ...(input.incident_moderation_enabled !== undefined && { incident_moderation_enabled: input.incident_moderation_enabled }),
                 ...(input.continuationToken && { continuation_token: input.continuationToken }),
                 ...(input.resetConversation && { reset_conversation: true }),
                 ...(Object.keys(options).length > 0 && { options }),
@@ -783,6 +786,7 @@ export class Tuteliq {
                 ...(input.external_id && { external_id: input.external_id }),
                 ...(input.customer_id && { customer_id: input.customer_id }),
                 ...(input.metadata && { metadata: input.metadata }),
+                ...(input.incident_moderation_enabled !== undefined && { incident_moderation_enabled: input.incident_moderation_enabled }),
                 ...(Object.keys(options).length > 0 && { options }),
             }
         );
@@ -1000,6 +1004,7 @@ export class Tuteliq {
                 ...(input.external_id && { external_id: input.external_id }),
                 ...(input.customer_id && { customer_id: input.customer_id }),
                 ...(input.metadata && { metadata: input.metadata }),
+                ...(input.incident_moderation_enabled !== undefined && { incident_moderation_enabled: input.incident_moderation_enabled }),
             }
         );
     }
@@ -1044,6 +1049,7 @@ export class Tuteliq {
                 ...(input.external_id && { external_id: input.external_id }),
                 ...(input.customer_id && { customer_id: input.customer_id }),
                 ...(input.metadata && { metadata: input.metadata }),
+                ...(input.incident_moderation_enabled !== undefined && { incident_moderation_enabled: input.incident_moderation_enabled }),
             }
         );
     }
@@ -1916,6 +1922,7 @@ export class Tuteliq {
                 ...(input.external_id && { external_id: input.external_id }),
                 ...(input.customer_id && { customer_id: input.customer_id }),
                 ...(input.metadata && { metadata: input.metadata }),
+                ...(input.incident_moderation_enabled !== undefined && { incident_moderation_enabled: input.incident_moderation_enabled }),
             }
         );
     }
@@ -2303,6 +2310,7 @@ export class Tuteliq {
                 ...(input.external_id && { external_id: input.external_id }),
                 ...(input.customer_id && { customer_id: input.customer_id }),
                 ...(input.metadata && { metadata: input.metadata }),
+                ...(input.incident_moderation_enabled !== undefined && { incident_moderation_enabled: input.incident_moderation_enabled }),
                 ...(input.bypassCache && { bypass_cache: true }),
                 ...(Object.keys(options).length > 0 && { options }),
             }

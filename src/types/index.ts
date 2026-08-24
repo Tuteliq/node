@@ -43,6 +43,14 @@ export interface TrackingFields {
      * Stored with detection results and included in webhooks.
      */
     metadata?: Record<string, unknown>;
+    /**
+     * Per-call override of your account's incident logging setting.
+     * When set, it takes precedence over the account-level flag for THIS request:
+     * `true` forces the incident to be persisted, `false` suppresses persistence.
+     * Omit to use your account default (which itself defaults to enabled).
+     * Useful to suppress logging for test traffic or to opt specific calls in or out.
+     */
+    incident_moderation_enabled?: boolean;
 }
 
 export interface ApiError {
