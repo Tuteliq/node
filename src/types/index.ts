@@ -196,13 +196,48 @@ export interface UsageMonthlyResult {
 // Batch Types
 // =============================================================================
 
+/**
+ * Analysis types accepted by POST /api/v1/batch/analyze.
+ *
+ * All of them take a single `text` except `grooming` and `emotions`, which
+ * take a message array (with different per-message field names — see
+ * `BatchGroomingItem` / `BatchEmotionsItem`).
+ */
+export const BATCH_TEXT_TYPES = [
+    'bullying',
+    'unsafe',
+    'social_engineering',
+    'app_fraud',
+    'romance_scam',
+    'mule_recruitment',
+    'gambling_harm',
+    'coercive_control',
+    'vulnerability_exploitation',
+    'radicalisation',
+] as const;
+
+export type BatchTextType = (typeof BATCH_TEXT_TYPES)[number];
+
+export type BatchAnalysisType = BatchTextType | 'grooming' | 'emotions';
+
 export interface BatchItemBase {
+    /**
+     * Your identifier for this item. The API requires one per item; when it is
+     * omitted the SDK generates a positional id (`item-0`, `item-1`, …) so the
+     * request stays valid. It is what the API echoes back on each result.
+     *
+     * This is NOT `external_id`: `id` addresses the item inside this one batch
+     * request, `external_id` is your own record's identifier for correlation
+     * and is echoed back untouched.
+     */
+    id?: string;
     /** Optional context - string shorthand or detailed object */
     context?: string | {
         language?: string;
         ageGroup?: string;
         relationship?: string;
         platform?: string;
+        country?: string;
     };
     /** Optional external ID for correlation */
     external_id?: string;
@@ -210,7 +245,7 @@ export interface BatchItemBase {
 
 export interface BatchTextItem extends BatchItemBase {
     /** Analysis type to perform */
-    type: 'bullying' | 'unsafe' | 'emotions';
+    type: BatchTextType;
     /** Content to analyze */
     content: string;
 }
@@ -224,7 +259,19 @@ export interface BatchGroomingItem extends BatchItemBase {
     childAge?: number;
 }
 
-export type BatchItem = BatchTextItem | BatchGroomingItem;
+export interface BatchEmotionsItem extends BatchItemBase {
+    /** Emotion analysis type */
+    type: 'emotions';
+    /**
+     * Conversation to analyze. The emotions endpoint is message-based; pass
+     * `content` instead for a single message and the SDK wraps it.
+     */
+    messages?: Array<{ sender: string; content: string }>;
+    /** Single message to analyze, wrapped into a one-message conversation. */
+    content?: string;
+}
+
+export type BatchItem = BatchTextItem | BatchGroomingItem | BatchEmotionsItem;
 
 export interface BatchAnalyzeInput {
     /** Items to analyze (max 50) */
@@ -238,12 +285,18 @@ export interface BatchAnalyzeInput {
 export interface BatchResultItem {
     /** Index of the item in the original array */
     index: number;
+    /** The item id (yours if you supplied one, otherwise the generated `item-N`) */
+    id: string;
+    /** Analysis type that was run */
+    type: BatchAnalysisType;
     /** Whether analysis succeeded */
     success: boolean;
     /** Analysis result (if successful) */
     result?: unknown;
     /** Error message (if failed) */
     error?: string;
+    /** Credits consumed by this item (if successful) */
+    credits_used?: number;
     /** External ID (if provided) */
     external_id?: string;
 }
@@ -256,6 +309,8 @@ export interface BatchAnalyzeResult {
         total: number;
         successful: number;
         failed: number;
+        /** Total credits consumed across all items */
+        total_credits_used?: number;
     };
     /** Total processing time in ms */
     processing_time_ms: number;

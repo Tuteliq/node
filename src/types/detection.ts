@@ -1,5 +1,5 @@
 import { TrackingFields } from './index.js';
-import { ContextInput, RecommendedAction } from './safety.js';
+import { ContextInput, RecommendedAction, SupportData } from './safety.js';
 import { LanguageStatus } from '../constants.js';
 
 export { LanguageStatus };
@@ -30,6 +30,16 @@ export interface DetectionInput extends TrackingFields {
      * real-time screening; the verdict itself is unchanged.
      */
     verdictOnly?: boolean;
+    /**
+     * Opaque signed token returned by a previous call to the same endpoint.
+     * Pass it back to continue the analysis with prior trajectory state; no
+     * message content is stored server-side. The endpoints that maintain
+     * conversation state (coercive-control, vulnerability-exploitation,
+     * distress-signals) return a fresh `continuation_token` on every result.
+     */
+    continuationToken?: string;
+    /** Discard any `continuationToken` and treat this call as a fresh conversation. */
+    resetConversation?: boolean;
 }
 
 /**
@@ -116,7 +126,7 @@ export interface DetectionResult {
      */
     action_detail?: string;
     /** Explanation of the analysis */
-    rationale: string;
+    rationale?: string;
     /** Per-message analysis (conversation-aware endpoints) */
     message_analysis?: MessageAnalysis[];
     /** Language code used for analysis */
@@ -133,6 +143,26 @@ export interface DetectionResult {
     customer_id?: string;
     /** Echo of provided metadata */
     metadata?: Record<string, unknown>;
+    /**
+     * Opaque signed token carrying derived trajectory state to the next call.
+     * Returned by the conversation-aware endpoints (coercive-control,
+     * vulnerability-exploitation, distress-signals); pass it back as
+     * `continuationToken` to keep multi-turn awareness with no content stored
+     * server-side.
+     */
+    continuation_token?: string;
+    /** ISO 8601 expiry timestamp of the continuation_token. */
+    continuation_expires_at?: string;
+    /**
+     * How prior state was sourced: "token" (decoded from a continuation_token),
+     * "fresh" (no prior state), "reset" (reset_conversation forced a restart).
+     */
+    state_source?: 'token' | 'fresh' | 'reset';
+    /**
+     * Crisis support resources, present only when the result meets the
+     * request's `supportThreshold`. Localised to `context.country`.
+     */
+    support?: SupportData;
 }
 
 // =============================================================================

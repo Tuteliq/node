@@ -103,6 +103,60 @@ export type ContextInput = string | {
 };
 
 // =============================================================================
+// Crisis Support
+// =============================================================================
+
+/** A single crisis helpline entry. */
+export interface SupportHelpline {
+    /** Organisation name */
+    name: string;
+    /** Phone number or short code, as dialled locally */
+    number: string;
+    /** What the line covers */
+    description?: string;
+    /**
+     * Coarse topic of the line, e.g. `childProtection`, `mentalHealth`,
+     * `domesticViolence`, `fraudPrevention`, `gambling`, `crisis`, `general`.
+     * Use it to tell a topical line apart from a general one.
+     */
+    category?: string;
+    /** Opening hours, e.g. "24/7" */
+    available?: string;
+}
+
+/** Guidance shown alongside the helplines. */
+export interface SupportResponseGuide {
+    category?: string;
+    immediateActions: string[];
+    childSpecificActions?: string[];
+    resources: Array<{ name: string; description?: string; url?: string }>;
+    confidential?: boolean;
+    language?: string;
+}
+
+/**
+ * Crisis support block attached to a positive detection once the result meets
+ * the request's `supportThreshold`. Localised to `context.country` when one is
+ * supplied, otherwise to the account's country, otherwise inferred from the
+ * detected language.
+ */
+export interface SupportData {
+    /** ISO 3166-1 alpha-2 code the helplines were localised for */
+    country?: string;
+    /** Display name of that country */
+    country_name?: string;
+    /** Local emergency number */
+    emergency_number?: string;
+    helplines: SupportHelpline[];
+    /** Highest-priority guide */
+    response_guide?: SupportResponseGuide;
+    /** All matching guides, highest priority first */
+    response_guides?: SupportResponseGuide[];
+    /** BCP-47 language of the guide content */
+    language?: string;
+}
+
+// =============================================================================
 // Bullying Detection
 // =============================================================================
 
@@ -179,6 +233,16 @@ export interface BullyingResult {
     continuation_token?: string;
     /** ISO 8601 expiry timestamp of the continuation_token. */
     continuation_expires_at?: string;
+    /**
+     * How prior state was sourced: "token" (decoded from a continuation_token),
+     * "fresh" (no prior state), "reset" (reset_conversation forced a restart).
+     */
+    state_source?: 'token' | 'fresh' | 'reset';
+    /**
+     * Crisis support resources, present only when the result meets the
+     * request's `supportThreshold`. Localised to `context.country`.
+     */
+    support?: SupportData;
 }
 
 // =============================================================================
@@ -282,6 +346,16 @@ export interface GroomingResult {
     continuation_token?: string;
     /** ISO 8601 expiry timestamp of the continuation_token. */
     continuation_expires_at?: string;
+    /**
+     * How prior state was sourced: "token" (decoded from a continuation_token),
+     * "fresh" (no prior state), "reset" (reset_conversation forced a restart).
+     */
+    state_source?: 'token' | 'fresh' | 'reset';
+    /**
+     * Crisis support resources, present only when the result meets the
+     * request's `supportThreshold`. Localised to `context.country`.
+     */
+    support?: SupportData;
 }
 
 // =============================================================================
@@ -340,6 +414,11 @@ export interface UnsafeResult {
     customer_id?: string;
     /** Echo of provided metadata (if any) */
     metadata?: Record<string, unknown>;
+    /**
+     * Crisis support resources, present only when the result meets the
+     * request's `supportThreshold`. Localised to `context.country`.
+     */
+    support?: SupportData;
 }
 
 // =============================================================================
