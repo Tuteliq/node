@@ -1,5 +1,5 @@
 import { TrackingFields } from './index.js';
-import { ContextInput, RecommendedAction } from './safety.js';
+import { ContextInput, ConversationTrajectory, RecommendedAction, SupportData } from './safety.js';
 import { LanguageStatus } from '../constants.js';
 
 export { LanguageStatus };
@@ -19,17 +19,35 @@ export interface DetectionInput extends TrackingFields {
     content: string;
     /** Context for better analysis */
     context?: ContextInput;
-    /** Include evidence excerpts in the response */
+    /**
+     * Include evidence excerpts in the response. Default: true. Explicitly
+     * setting this always wins over the inference `verdictOnly` makes below —
+     * pass `includeEvidence: true` alongside `verdictOnly: true` if you want
+     * fast mode's other savings without losing evidence.
+     */
     includeEvidence?: boolean;
     /** Minimum severity to show crisis support resources (default: 'high'). Critical always shows. */
     supportThreshold?: 'low' | 'medium' | 'high' | 'critical';
     /**
-     * Fast mode. When true, the response omits the per-message
-     * `message_analysis` breakdown and returns only the verdict (level,
-     * categories, recommended action). Lower latency and a smaller payload for
-     * real-time screening; the verdict itself is unchanged.
+     * Fast mode. When true and `includeEvidence` isn't explicitly set, this
+     * also implies `includeEvidence: false` — `evidence` (with quoted
+     * excerpts from the input) is the expensive field on these endpoints,
+     * the equivalent of `action_detail` on the safety endpoints. The response
+     * also omits the per-message `message_analysis` breakdown. `rationale`
+     * and the verdict itself (level, categories, recommended action) are
+     * always generated regardless of this flag.
      */
     verdictOnly?: boolean;
+    /**
+     * Opaque signed token returned by a previous call to the same endpoint.
+     * Pass it back to continue the analysis with prior trajectory state; no
+     * message content is stored server-side. The endpoints that maintain
+     * conversation state (coercive-control, vulnerability-exploitation,
+     * distress-signals) return a fresh `continuation_token` on every result.
+     */
+    continuationToken?: string;
+    /** Discard any `continuationToken` and treat this call as a fresh conversation. */
+    resetConversation?: boolean;
 }
 
 /**
@@ -100,7 +118,11 @@ export interface DetectionResult {
     level: 'none' | 'low' | 'medium' | 'high' | 'critical';
     /** Detected categories */
     categories: DetectionCategory[];
-    /** Evidence excerpts (if include_evidence was true) */
+    /**
+     * Evidence excerpts, with quoted spans from the input. Omitted when
+     * `includeEvidence` is false, including implicitly via `verdictOnly`
+     * (see `DetectionInput.verdictOnly`).
+     */
     evidence?: DetectionEvidence[];
     /** Age calibration details */
     age_calibration?: AgeCalibration;
@@ -115,9 +137,14 @@ export interface DetectionResult {
      * a moderator UI. Free text: do not branch on it.
      */
     action_detail?: string;
-    /** Explanation of the analysis */
-    rationale: string;
-    /** Per-message analysis (conversation-aware endpoints) */
+    /**
+     * Explanation of the analysis — this is what a moderator reads to triage
+     * the incident, and always generated, regardless of `verdictOnly` or
+     * `includeEvidence`.
+     */
+    rationale?: string;
+    /** Per-message analysis (conversation-aware endpoints). Omitted when
+     *  `verdictOnly` is set. */
     message_analysis?: MessageAnalysis[];
     /** Language code used for analysis */
     language: string;
@@ -133,6 +160,52 @@ export interface DetectionResult {
     customer_id?: string;
     /** Echo of provided metadata */
     metadata?: Record<string, unknown>;
+    /**
+     * Opaque signed token carrying derived trajectory state to the next call.
+     * Returned by the conversation-aware endpoints (coercive-control,
+     * vulnerability-exploitation, distress-signals); pass it back as
+     * `continuationToken` to keep multi-turn awareness with no content stored
+     * server-side.
+     */
+    continuation_token?: string;
+    /** ISO 8601 expiry timestamp of the continuation_token. */
+    continuation_expires_at?: string;
+    /**
+     * How prior state was sourced: "token" (decoded from a continuation_token),
+     * "fresh" (no prior state), "reset" (reset_conversation forced a restart).
+     */
+    state_source?: 'token' | 'fresh' | 'reset';
+    /**
+     * Conversation-level risk (0-1). Distinct from `risk_score`, which scores
+     * only the content in this request.
+     *
+     * Returned by the same endpoints that issue a `continuation_token`
+     * (coercive-control, vulnerability-exploitation, distress-signals) once
+     * there is more than one turn to reason across. Anchored on the highest
+     * severity seen so far, decaying slowly across benign turns and never
+     * falling below the current turn, so a calm message after an escalation
+     * does not reset the picture. Derived from the signed token: no message
+     * content is stored to produce it.
+     *
+     * Absent on the first turn, and on endpoints that do not track state.
+     */
+    trajectory_risk?: number;
+    /**
+     * Direction of travel across the conversation so far. Absent on the first
+     * turn, alongside `trajectory_risk`.
+     */
+    trajectory?: ConversationTrajectory;
+    /**
+     * Per-turn severity, oldest first — the evidence behind `trajectory_risk`,
+     * so a moderator can see why a benign-looking turn carries elevated
+     * conversation risk.
+     */
+    severity_series?: number[];
+    /**
+     * Crisis support resources, present only when the result meets the
+     * request's `supportThreshold`. Localised to `context.country`.
+     */
+    support?: SupportData;
 }
 
 // =============================================================================

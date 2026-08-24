@@ -5,6 +5,72 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.26.0] - 2026-08-24
+
+### Changed
+
+- **`verdictOnly` no longer omits `rationale` on `detectBullying` / `detectUnsafe` — it omits `action_detail` instead.** Two accounts on this SDK found every persisted bullying incident summary reading as the same flat generic string, because `rationale` — the one field a moderator reads to triage an incident — was the field fast mode cut server-side. `action_detail` (the secondary, comparably-sized moderator-guidance field) was left unconditional, backwards from what fast mode should prioritise. `detectGrooming` already had this right; bullying and unsafe are now consistent with it. `GroomingResult.rationale` is correspondingly now typed as required (`string`, not `string?`) — it was always unconditional at runtime, the type just hadn't caught up. `BullyingResult.rationale` / `UnsafeResult.rationale` stay optional at the type level as a defensive measure (a malformed LLM response could still theoretically omit it), but are documented as always generated. **Requires the API deployed on or after 2026-08-24**; against an older deployment, `verdictOnly` continues to omit `rationale` as before.
+
+- **`verdictOnly` now implies `includeEvidence: false` on the fraud/safety-extended endpoints, unless `includeEvidence` is set explicitly.** Previously `verdictOnly` had no effect at all on `detectRomanceScam`, `detectSocialEngineering`, `detectAppFraud`, `detectMuleRecruitment`, `detectGamblingHarm`, `detectCoerciveControl`, `detectVulnerabilityExploitation`, `detectRadicalisation`, `detectDistressSignals`, `detectTFGBV` and `detectSyntheticContent` — the full `evidence[]` array, including quoted excerpts from the input, was always returned regardless. `evidence` is this endpoint family's equivalent of `action_detail`: the expensive, skippable field. `rationale` was already unconditional here and is untouched. Pass `includeEvidence: true` alongside `verdictOnly: true` if you want fast mode's other savings without losing evidence. **Requires the API deployed on or after 2026-08-24**; against an older deployment, `verdictOnly` continues to have no effect on evidence.
+
+### Fixed
+
+- **`includeEvidence: false` was silently dropped and never reached the API.** `buildDetectionBody` only forwarded `includeEvidence` when it was truthy (`if (input.includeEvidence) ...`), so an explicit `includeEvidence: false` — the caller's choice to exclude evidence entirely — was indistinguishable from not setting it at all, and the server's default (`true`) applied instead. Found auditing the `verdictOnly` change above. Now forwards `true` and `false` alike, and omits the field only when the caller truly didn't set it (letting the server apply its own default, including the new `verdictOnly` inference above).
+
+## [2.25.0] - 2026-08-20
+
+### Added
+
+- **Conversation-level risk: `trajectory_risk`, `trajectory` and `severity_series`.** `risk_score` has only ever scored the message in the current request. An external reviewer fed a six-turn bullying escalation and watched the scores go 5, 10, 65, 5, 75, 5 — the final "see you tomorrow :)", sent immediately after two flagged messages, came back described as a positive social interaction. Correct per message; useless for a child who had just been excluded. Slow-burn exclusion cannot be seen one message at a time.
+
+  The API now returns a conversation-level view alongside the continuation token, and it is typed here on `BullyingResult`, `GroomingResult` and `DetectionResult` — the same three result types that carry `continuation_token`:
+
+  - `trajectory_risk` (0-1) — risk for the conversation rather than for the turn. Anchored on the highest severity seen so far, decaying slowly across benign turns and never falling below the current turn, so a friendly message straight after an escalation does not reset it. On the reviewer's conversation it reads `0.74` where `risk_score` reads `0.10`.
+  - `trajectory` — `rising` | `stable` | `declining` | `none`, exported as the `ConversationTrajectory` type.
+  - `severity_series` — per-turn severity, oldest first: the evidence behind the other two, so the number can be shown rather than asserted.
+
+  All three are optional and absent on the first turn of a fresh conversation, where they would only restate `risk_score`. They require a `continuationToken` to be threaded through the conversation; without one, every call is a first turn. Branch on the higher of `risk_score` and `trajectory_risk`, not on `risk_score` alone.
+
+### Fixed
+
+- **`analyze()` accepted `incident_moderation_enabled`, dropped it, and reported it as applied.** The flag lives on the shared `TrackingFields`, so `analyze()` accepted it — but it was never forwarded to the `detectBullying` / `detectUnsafe` calls the method fans out to, while being copied verbatim into the returned result. A caller passing `false` to suppress incident persistence got incidents persisted by both sub-calls and a response claiming otherwise. It is now forwarded to both, and declared on `AnalyzeResult` instead of being an untyped extra field.
+
+### Note
+
+- `analyze()` still cannot report a trajectory: it accepts no `continuationToken`, so every call is a fresh first turn and its combined `risk_score` remains the maximum of the per-message scores. Where a sub-result does carry conversation state it is preserved in full under `result.bullying`. For multi-turn work call `detectBullying` directly.
+
+## [2.24.0] - 2026-08-20
+
+### Fixed
+
+- **`batch()` sent a request shape the API has never accepted.** `POST /api/v1/batch/analyze` requires each item to be `{ id, type, data }`; the SDK sent `{ type, text, context, external_id }`, so every batch call was rejected with `body/items/0 must have required property 'id'`. Three separate mismatches: the missing `id`, `text`/`messages` sitting on the item instead of inside `data`, and `parallel` nested under an `options` object the route never reads — so `parallel: false` was silently ignored even had the rest been valid. Batch analysis did not work through the SDK, or through the MCP server that calls it.
+
+  Items now carry an optional `id`; one is generated positionally (`item-0`, `item-1`, …) when you do not supply it. `id` addresses an item within the request and is echoed on its result — it is not `external_id`, which is your own record's identifier and is still returned alongside it.
+
+- **`batch()` returned a result shape that did not match its own type.** The API keys results by `id` and reports timing as `summary.processingTimeMs`; `BatchAnalyzeResult` declares `results[].index` and a top-level `processing_time_ms`. Both were `undefined` at runtime, so `items[r.index]` never resolved. The response is now mapped back: positional `index` restored by id, `external_id` re-attached from the request, `processing_time_ms` and `summary.total_credits_used` populated.
+
+- **`createVerificationSession()` discarded `recommended_image_width` and `verification_mode`.** The API returns both; the SDK projected the response down to four fields. `recommended_image_width` is the capture width at which document small print (document number, issuing authority, issue date) survives OCR, so dropping it left callers guessing at a value the API had already supplied. `expires_at` is also now correctly typed as `number` (epoch milliseconds), which is what the API sends.
+
+### Added
+
+- **All twelve batch analysis types.** `batch()` previously typed only `bullying`, `unsafe`, `emotions` and `grooming`. It now accepts the full set the route supports: those four plus `social_engineering`, `app_fraud`, `romance_scam`, `mule_recruitment`, `gambling_harm`, `coercive_control`, `vulnerability_exploitation` and `radicalisation`.
+
+- **Batch emotions items take `messages`.** The emotions endpoint is message-based and uses `sender`/`text`, not grooming's `sender_role`/`text`. Pass `messages: [{ sender, content }]`, or keep passing `content` and the SDK wraps it into a one-message conversation.
+
+- **`continuationToken` / `resetConversation` on the unified detection endpoints.** `detectCoerciveControl`, `detectVulnerabilityExploitation` and `detectDistressSignals` maintain conversation state server-side and return a fresh `continuation_token` on every result, but there was no way to send one back — multi-turn trajectory on those endpoints was unreachable from the SDK. The fields are accepted on every `DetectionInput`; endpoints that do not track state ignore them.
+
+- **`SupportData` / `SupportHelpline` / `SupportResponseGuide` types.** The `support` block attached to a positive detection was undeclared, so every consumer cast through `any`. `support` is now typed on `BullyingResult`, `GroomingResult`, `UnsafeResult` and `DetectionResult`, alongside `continuation_token`, `continuation_expires_at` and `state_source`.
+
+### Changed
+
+- **`DetectionResult.rationale` is now optional.** `verdictOnly: true` suppresses rationale generation server-side, so the field was already absent at runtime while the type promised a `string`. Callers interpolating it printed the literal string `undefined`. This is a type-level breaking change for TypeScript consumers who read `rationale` unguarded; it matches the runtime behaviour and the already-optional `rationale` on `BullyingResult` and `GroomingResult`.
+
+## [2.23.0] - 2026-08-12
+
+### Added
+
+- **Per-call incident logging control** — every detection method now accepts an optional `incident_moderation_enabled` (via the shared `TrackingFields`). It overrides your account-level incident-logging setting for that single request: `true` forces the incident to be persisted, `false` suppresses persistence, and omitting it defers to your account default (which itself defaults to enabled). Useful for suppressing logging on test traffic or opting specific calls in or out. `false` is passed through correctly, not treated as "unset".
+
 ## [2.21.0] - 2026-08-05
 
 ### Fixed

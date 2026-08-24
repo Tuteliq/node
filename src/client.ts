@@ -31,6 +31,9 @@ import {
     // Batch types
     BatchAnalyzeInput,
     BatchAnalyzeResult,
+    BatchAnalysisType,
+    BatchItem,
+    BatchResultItem,
     // Account types
     AccountDeletionResult,
     AccountExportResult,
@@ -228,6 +231,32 @@ function typedBlob(file: Buffer, filename: string): Blob {
     return new Blob([file as unknown as BlobPart], type ? { type } : undefined);
 }
 
+/**
+ * Wire shape of POST /api/v1/batch/analyze.
+ *
+ * Deliberately separate from the public `BatchAnalyzeResult`: the API keys
+ * results by the item `id` and reports timing inside `summary`, while callers
+ * work in positional indexes and their own `external_id`s. `batch()` maps
+ * between the two.
+ */
+interface BatchApiResponse {
+    results?: Array<{
+        id: string;
+        type: BatchAnalysisType;
+        success: boolean;
+        result?: unknown;
+        error?: string;
+        credits_used?: number;
+    }>;
+    summary?: {
+        total: number;
+        successful: number;
+        failed: number;
+        processingTimeMs: number;
+        total_credits_used?: number;
+    };
+}
+
 export class Tuteliq {
     private readonly apiKey: string;
     private readonly timeout: number;
@@ -372,18 +401,33 @@ export class Tuteliq {
      * Build request body for unified detection endpoints
      */
     private buildDetectionBody(input: DetectionInput): Record<string, unknown> {
+        // `includeEvidence` must be forwarded on BOTH true and false — a
+        // truthy-only check (the previous `if (input.includeEvidence)`)
+        // silently dropped an explicit `includeEvidence: false`, so the
+        // caller's choice to exclude evidence never reached the API at all.
+        // Leaving the field out entirely (the `undefined` case) is
+        // deliberate: it lets the server apply its own default, which is
+        // "true" normally but "false" when `verdictOnly` is set — see
+        // `DetectionInput.verdictOnly`. Replicating that inference here too
+        // would just be a second place for the two to drift apart.
         const options: Record<string, unknown> = {};
         if (input.supportThreshold) options.support_threshold = input.supportThreshold;
-        if (input.includeEvidence) options.include_evidence = true;
+        if (input.includeEvidence !== undefined) options.include_evidence = input.includeEvidence;
         if (input.verdictOnly) options.verdict_only = true;
 
         return {
             text: input.content,
             context: this.normalizeContext(input.context),
-            ...(input.includeEvidence && { include_evidence: true }),
+            ...(input.includeEvidence !== undefined && { include_evidence: input.includeEvidence }),
+            // Every unified detection endpoint accepts these (see the shared
+            // body schema); coercive-control, vulnerability-exploitation and
+            // distress-signals additionally issue a fresh token back.
+            ...(input.continuationToken && { continuation_token: input.continuationToken }),
+            ...(input.resetConversation && { reset_conversation: true }),
             ...(input.external_id && { external_id: input.external_id }),
             ...(input.customer_id && { customer_id: input.customer_id }),
             ...(input.metadata && { metadata: input.metadata }),
+            ...(input.incident_moderation_enabled !== undefined && { incident_moderation_enabled: input.incident_moderation_enabled }),
             ...(Object.keys(options).length > 0 && { options }),
         };
     }
@@ -684,6 +728,7 @@ export class Tuteliq {
                 ...(input.external_id && { external_id: input.external_id }),
                 ...(input.customer_id && { customer_id: input.customer_id }),
                 ...(input.metadata && { metadata: input.metadata }),
+                ...(input.incident_moderation_enabled !== undefined && { incident_moderation_enabled: input.incident_moderation_enabled }),
                 ...(input.continuationToken && { continuation_token: input.continuationToken }),
                 ...(input.resetConversation && { reset_conversation: true }),
                 ...(Object.keys(options).length > 0 && { options }),
@@ -739,6 +784,7 @@ export class Tuteliq {
                 ...(input.external_id && { external_id: input.external_id }),
                 ...(input.customer_id && { customer_id: input.customer_id }),
                 ...(input.metadata && { metadata: input.metadata }),
+                ...(input.incident_moderation_enabled !== undefined && { incident_moderation_enabled: input.incident_moderation_enabled }),
                 ...(input.continuationToken && { continuation_token: input.continuationToken }),
                 ...(input.resetConversation && { reset_conversation: true }),
                 ...(Object.keys(options).length > 0 && { options }),
@@ -783,6 +829,7 @@ export class Tuteliq {
                 ...(input.external_id && { external_id: input.external_id }),
                 ...(input.customer_id && { customer_id: input.customer_id }),
                 ...(input.metadata && { metadata: input.metadata }),
+                ...(input.incident_moderation_enabled !== undefined && { incident_moderation_enabled: input.incident_moderation_enabled }),
                 ...(Object.keys(options).length > 0 && { options }),
             }
         );
@@ -826,6 +873,11 @@ export class Tuteliq {
                 external_id: input.external_id,
                 customer_id: input.customer_id,
                 metadata: input.metadata,
+                // Forwarded, not just echoed. `analyze()` used to accept this
+                // (it is on the shared TrackingFields), drop it on the way out,
+                // and then copy it into its own result — so `false` read back
+                // as honoured while both sub-calls still logged an incident.
+                incident_moderation_enabled: input.incident_moderation_enabled,
             }));
         }
 
@@ -838,6 +890,7 @@ export class Tuteliq {
                 external_id: input.external_id,
                 customer_id: input.customer_id,
                 metadata: input.metadata,
+                incident_moderation_enabled: input.incident_moderation_enabled,
             }));
         }
 
@@ -904,6 +957,7 @@ export class Tuteliq {
             ...(input.external_id && { external_id: input.external_id }),
             ...(input.customer_id && { customer_id: input.customer_id }),
             ...(input.metadata && { metadata: input.metadata }),
+            ...(input.incident_moderation_enabled !== undefined && { incident_moderation_enabled: input.incident_moderation_enabled }),
         };
     }
 
@@ -1000,6 +1054,7 @@ export class Tuteliq {
                 ...(input.external_id && { external_id: input.external_id }),
                 ...(input.customer_id && { customer_id: input.customer_id }),
                 ...(input.metadata && { metadata: input.metadata }),
+                ...(input.incident_moderation_enabled !== undefined && { incident_moderation_enabled: input.incident_moderation_enabled }),
             }
         );
     }
@@ -1044,6 +1099,7 @@ export class Tuteliq {
                 ...(input.external_id && { external_id: input.external_id }),
                 ...(input.customer_id && { customer_id: input.customer_id }),
                 ...(input.metadata && { metadata: input.metadata }),
+                ...(input.incident_moderation_enabled !== undefined && { incident_moderation_enabled: input.incident_moderation_enabled }),
             }
         );
     }
@@ -1299,14 +1355,61 @@ export class Tuteliq {
     // =========================================================================
 
     /**
+     * Build the `data` payload for one batch item.
+     *
+     * POST /api/v1/batch/analyze takes `{ id, type, data }` and reads the
+     * per-type payload out of `data` — `data.text` for the single-text
+     * endpoints, `data.messages` for grooming and emotions, each with its own
+     * per-message field names. This used to send `{ type, text, context }` at
+     * the item's top level, which the route's schema rejected outright
+     * ("must have required property 'id'").
+     */
+    private buildBatchItemData(item: BatchItem): Record<string, unknown> {
+        if (item.type === 'grooming') {
+            return {
+                messages: item.messages.map(m => ({
+                    sender_role: m.role,
+                    text: m.content,
+                })),
+                context: {
+                    ...(item.childAge != null && { child_age: item.childAge }),
+                    ...this.normalizeContext(item.context),
+                },
+            };
+        }
+
+        if (item.type === 'emotions') {
+            // The emotions endpoint is message-based and uses `sender`, not
+            // `sender_role`. A bare `content` is a one-message conversation.
+            const messages = item.messages?.length
+                ? item.messages.map(m => ({ sender: m.sender, text: m.content }))
+                : [{ sender: 'user', text: item.content ?? '' }];
+            return {
+                messages,
+                context: this.normalizeContext(item.context),
+            };
+        }
+
+        return {
+            text: item.content,
+            context: this.normalizeContext(item.context),
+        };
+    }
+
+    /**
      * Analyze multiple items in a single batch request
+     *
+     * Each item may carry an `id`; when omitted the SDK generates `item-N` from
+     * the item's position. `id` addresses the item within this request and is
+     * echoed on the matching result — it is not `external_id`, which is your
+     * own record's identifier and is returned alongside it.
      *
      * @example
      * ```typescript
      * const result = await tuteliq.batch({
      *   items: [
-     *     { type: 'bullying', content: 'Message 1' },
-     *     { type: 'unsafe', content: 'Message 2' },
+     *     { id: 'msg-1', type: 'bullying', content: 'Message 1' },
+     *     { id: 'msg-2', type: 'unsafe', content: 'Message 2' },
      *   ],
      *   parallel: true
      * })
@@ -1323,38 +1426,60 @@ export class Tuteliq {
             throw new ValidationError('Maximum 50 items per batch request');
         }
 
-        return this.requestWithRetry<BatchAnalyzeResult>(
+        const ids = input.items.map((item, i) => item.id ?? `item-${i}`);
+
+        // First occurrence wins, so a caller who reuses an id still gets a
+        // stable mapping instead of an undefined index.
+        const indexById = new Map<string, number>();
+        ids.forEach((id, i) => {
+            if (!indexById.has(id)) indexById.set(id, i);
+        });
+
+        const raw = await this.requestWithRetry<BatchApiResponse>(
             'POST',
             '/api/v1/batch/analyze',
             {
-                items: input.items.map(item => {
-                    if (item.type === 'grooming') {
-                        return {
-                            type: item.type,
-                            messages: item.messages.map(m => ({
-                                sender_role: m.role,
-                                text: m.content,
-                            })),
-                            context: {
-                                ...(item.childAge != null && { child_age: item.childAge }),
-                                ...this.normalizeContext(item.context),
-                            },
-                            external_id: item.external_id,
-                        };
-                    }
-                    return {
-                        type: item.type,
-                        text: item.content,
-                        context: this.normalizeContext(item.context),
-                        external_id: item.external_id,
-                    };
-                }),
-                options: {
-                    parallel: input.parallel ?? true,
-                    continue_on_error: input.continueOnError ?? true,
-                },
+                items: input.items.map((item, i) => ({
+                    id: ids[i],
+                    type: item.type,
+                    data: this.buildBatchItemData(item),
+                })),
+                // The route reads `parallel` off the request body, not off an
+                // `options` object — nesting it meant it was always defaulted.
+                parallel: input.parallel ?? true,
             }
         );
+
+        // The API keys results by `id` and does not echo `external_id`. Restore
+        // both the caller's positional `index` and their `external_id` here so
+        // a result can be tied back to the item that produced it.
+        const results: BatchResultItem[] = (raw.results ?? []).map((r, position) => {
+            const index = indexById.get(r.id) ?? position;
+            const item = input.items[index];
+            return {
+                index,
+                id: r.id,
+                type: r.type,
+                success: r.success,
+                ...(r.result !== undefined && { result: r.result }),
+                ...(r.error !== undefined && { error: r.error }),
+                ...(r.credits_used !== undefined && { credits_used: r.credits_used }),
+                ...(item?.external_id !== undefined && { external_id: item.external_id }),
+            };
+        });
+
+        return {
+            results,
+            summary: {
+                total: raw.summary?.total ?? results.length,
+                successful: raw.summary?.successful ?? results.filter(r => r.success).length,
+                failed: raw.summary?.failed ?? results.filter(r => !r.success).length,
+                ...(raw.summary?.total_credits_used !== undefined && {
+                    total_credits_used: raw.summary.total_credits_used,
+                }),
+            },
+            processing_time_ms: raw.summary?.processingTimeMs ?? 0,
+        };
     }
 
     // =========================================================================
@@ -1916,6 +2041,7 @@ export class Tuteliq {
                 ...(input.external_id && { external_id: input.external_id }),
                 ...(input.customer_id && { customer_id: input.customer_id }),
                 ...(input.metadata && { metadata: input.metadata }),
+                ...(input.incident_moderation_enabled !== undefined && { incident_moderation_enabled: input.incident_moderation_enabled }),
             }
         );
     }
@@ -2303,6 +2429,7 @@ export class Tuteliq {
                 ...(input.external_id && { external_id: input.external_id }),
                 ...(input.customer_id && { customer_id: input.customer_id }),
                 ...(input.metadata && { metadata: input.metadata }),
+                ...(input.incident_moderation_enabled !== undefined && { incident_moderation_enabled: input.incident_moderation_enabled }),
                 ...(input.bypassCache && { bypass_cache: true }),
                 ...(Object.keys(options).length > 0 && { options }),
             }
@@ -2531,8 +2658,10 @@ export class Tuteliq {
         const response = await this.requestWithRetry<{
             session_id: string;
             mobile_url: string;
-            expires_at: string;
+            expires_at: number;
             mode: VerificationSession['mode'];
+            verification_mode?: string;
+            recommended_image_width?: number;
         }>(
             'POST',
             '/api/v1/verify/session',
@@ -2546,11 +2675,17 @@ export class Tuteliq {
             }
         );
 
+        // `mobile_url` is renamed to `url`; everything else is passed straight
+        // through. `recommended_image_width` in particular used to be dropped
+        // here, which left callers guessing at a capture resolution the API had
+        // already told them.
         return {
             session_id: response.session_id,
             url: response.mobile_url,
             expires_at: response.expires_at,
             mode: response.mode,
+            ...(response.verification_mode !== undefined && { verification_mode: response.verification_mode }),
+            ...(response.recommended_image_width !== undefined && { recommended_image_width: response.recommended_image_width }),
         };
     }
 

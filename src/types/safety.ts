@@ -28,6 +28,20 @@ export type RecommendedAction =
     | 'block'
     | 'immediate_intervention';
 
+/**
+ * Direction of travel across a conversation, reported alongside
+ * `trajectory_risk` by the endpoints that maintain continuation state.
+ *
+ * - `rising` — severity is trending upward across turns
+ * - `stable` — severity is holding
+ * - `declining` — severity is trending downward
+ * - `none` — not enough signal to call a direction
+ *
+ * `declining` is not the same as safe: `trajectory_risk` stays anchored on the
+ * worst turn seen and decays only slowly, which is the point.
+ */
+export type ConversationTrajectory = 'rising' | 'stable' | 'declining' | 'none';
+
 /** Weakest to strongest. Used to compare and combine actions. */
 const ACTION_RANK: Record<RecommendedAction, number> = {
     none: 0,
@@ -103,6 +117,60 @@ export type ContextInput = string | {
 };
 
 // =============================================================================
+// Crisis Support
+// =============================================================================
+
+/** A single crisis helpline entry. */
+export interface SupportHelpline {
+    /** Organisation name */
+    name: string;
+    /** Phone number or short code, as dialled locally */
+    number: string;
+    /** What the line covers */
+    description?: string;
+    /**
+     * Coarse topic of the line, e.g. `childProtection`, `mentalHealth`,
+     * `domesticViolence`, `fraudPrevention`, `gambling`, `crisis`, `general`.
+     * Use it to tell a topical line apart from a general one.
+     */
+    category?: string;
+    /** Opening hours, e.g. "24/7" */
+    available?: string;
+}
+
+/** Guidance shown alongside the helplines. */
+export interface SupportResponseGuide {
+    category?: string;
+    immediateActions: string[];
+    childSpecificActions?: string[];
+    resources: Array<{ name: string; description?: string; url?: string }>;
+    confidential?: boolean;
+    language?: string;
+}
+
+/**
+ * Crisis support block attached to a positive detection once the result meets
+ * the request's `supportThreshold`. Localised to `context.country` when one is
+ * supplied, otherwise to the account's country, otherwise inferred from the
+ * detected language.
+ */
+export interface SupportData {
+    /** ISO 3166-1 alpha-2 code the helplines were localised for */
+    country?: string;
+    /** Display name of that country */
+    country_name?: string;
+    /** Local emergency number */
+    emergency_number?: string;
+    helplines: SupportHelpline[];
+    /** Highest-priority guide */
+    response_guide?: SupportResponseGuide;
+    /** All matching guides, highest priority first */
+    response_guides?: SupportResponseGuide[];
+    /** BCP-47 language of the guide content */
+    language?: string;
+}
+
+// =============================================================================
 // Bullying Detection
 // =============================================================================
 
@@ -145,7 +213,10 @@ export interface BullyingResult {
     confidence: number;
     /** Severity of the bullying */
     severity: Severity;
-    /** Explanation of the analysis. Omitted when `verdictOnly` was set. */
+    /**
+     * Explanation of the analysis — this is what a moderator reads to triage
+     * the incident, and always generated, including when `verdictOnly` is set.
+     */
     rationale?: string;
     /**
      * Recommended action, as a stable enum. Branch on this (or `isActionable`)
@@ -154,7 +225,8 @@ export interface BullyingResult {
     recommended_action: RecommendedAction;
     /**
      * Optional human-readable expansion of `recommended_action`, for display in
-     * a moderator UI. Free text: do not branch on it.
+     * a moderator UI. Free text: do not branch on it. Omitted when
+     * `verdictOnly` is set — this is the field fast mode cuts, not `rationale`.
      */
     action_detail?: string;
     /** Risk score (0-1) */
@@ -179,6 +251,45 @@ export interface BullyingResult {
     continuation_token?: string;
     /** ISO 8601 expiry timestamp of the continuation_token. */
     continuation_expires_at?: string;
+    /**
+     * How prior state was sourced: "token" (decoded from a continuation_token),
+     * "fresh" (no prior state), "reset" (reset_conversation forced a restart).
+     */
+    state_source?: 'token' | 'fresh' | 'reset';
+    /**
+     * Conversation-level risk (0-1). Distinct from `risk_score`, which scores
+     * only the message in this request.
+     *
+     * `risk_score` answers "should I action this message"; `trajectory_risk`
+     * answers "is this conversation going badly". They diverge exactly where it
+     * matters: a "see you tomorrow :)" sent straight after two flagged turns
+     * scores near zero on its own and 0.74 as a conversation. Branch on the
+     * higher of the two, not on `risk_score` alone.
+     *
+     * Anchored on the highest severity seen so far, decaying slowly across
+     * benign turns and never falling below the current turn. Derived from the
+     * signed `continuation_token`: no message content is stored to produce it.
+     *
+     * Absent on the first turn of a fresh conversation, where it would only
+     * restate `risk_score`.
+     */
+    trajectory_risk?: number;
+    /**
+     * Direction of travel across the conversation so far. Absent on the first
+     * turn, alongside `trajectory_risk`.
+     */
+    trajectory?: ConversationTrajectory;
+    /**
+     * Per-turn severity, oldest first — the evidence behind `trajectory_risk`.
+     * Render it rather than asserting the number: it is what shows a moderator
+     * why a benign-looking message arrived with elevated conversation risk.
+     */
+    severity_series?: number[];
+    /**
+     * Crisis support resources, present only when the result meets the
+     * request's `supportThreshold`. Localised to `context.country`.
+     */
+    support?: SupportData;
 }
 
 // =============================================================================
@@ -246,8 +357,11 @@ export interface GroomingResult {
     confidence: number;
     /** Grooming indicators/flags detected */
     flags: string[];
-    /** Explanation of the analysis. Omitted when `verdictOnly` was set. */
-    rationale?: string;
+    /**
+     * Explanation of the analysis — this is what a moderator reads to triage
+     * the incident, and always generated, including when `verdictOnly` is set.
+     */
+    rationale: string;
     /** Risk score (0-1) */
     risk_score: number;
     /**
@@ -257,10 +371,12 @@ export interface GroomingResult {
     recommended_action: RecommendedAction;
     /**
      * Optional human-readable expansion of `recommended_action`, for display in
-     * a moderator UI. Free text: do not branch on it.
+     * a moderator UI. Free text: do not branch on it. Omitted when
+     * `verdictOnly` is set.
      */
     action_detail?: string;
-    /** Per-message analysis (conversation-aware endpoints) */
+    /** Per-message analysis (conversation-aware endpoints). Omitted when
+     *  `verdictOnly` is set. */
     message_analysis?: MessageAnalysis[];
     /** Language code used for analysis */
     language?: string;
@@ -282,6 +398,43 @@ export interface GroomingResult {
     continuation_token?: string;
     /** ISO 8601 expiry timestamp of the continuation_token. */
     continuation_expires_at?: string;
+    /**
+     * How prior state was sourced: "token" (decoded from a continuation_token),
+     * "fresh" (no prior state), "reset" (reset_conversation forced a restart).
+     */
+    state_source?: 'token' | 'fresh' | 'reset';
+    /**
+     * Conversation-level risk (0-1) across every window seen so far. Distinct
+     * from `risk_score`, which scores only the messages in this request.
+     *
+     * Grooming is a slow burn, so a chunked conversation whose current window
+     * reads benign can still be at high conversation risk. Branch on the higher
+     * of the two, not on `risk_score` alone.
+     *
+     * Anchored on the highest severity seen so far, decaying slowly across
+     * benign windows and never falling below the current one. Derived from the
+     * signed `continuation_token`: no message content is stored to produce it.
+     *
+     * Absent on the first call of a fresh conversation.
+     */
+    trajectory_risk?: number;
+    /**
+     * Direction of travel across the conversation so far. Absent on the first
+     * call, alongside `trajectory_risk`.
+     */
+    trajectory?: ConversationTrajectory;
+    /**
+     * Per-window severity, oldest first — the evidence behind
+     * `trajectory_risk`. Render it rather than asserting the number: it is what
+     * shows a moderator why a benign-looking window carries elevated
+     * conversation risk.
+     */
+    severity_series?: number[];
+    /**
+     * Crisis support resources, present only when the result meets the
+     * request's `supportThreshold`. Localised to `context.country`.
+     */
+    support?: SupportData;
 }
 
 // =============================================================================
@@ -316,7 +469,10 @@ export interface UnsafeResult {
     risk_score: number;
     /** Risk level derived from risk_score */
     risk_level?: 'none' | 'low' | 'medium' | 'high' | 'critical';
-    /** Explanation of the analysis. Omitted when `verdictOnly` was set. */
+    /**
+     * Explanation of the analysis — this is what a moderator reads to triage
+     * the incident, and always generated, including when `verdictOnly` is set.
+     */
     rationale?: string;
     /**
      * Recommended action, as a stable enum. Branch on this (or `isActionable`)
@@ -325,7 +481,8 @@ export interface UnsafeResult {
     recommended_action: RecommendedAction;
     /**
      * Optional human-readable expansion of `recommended_action`, for display in
-     * a moderator UI. Free text: do not branch on it.
+     * a moderator UI. Free text: do not branch on it. Omitted when
+     * `verdictOnly` is set — this is the field fast mode cuts, not `rationale`.
      */
     action_detail?: string;
     /** Language code used for analysis */
@@ -340,6 +497,11 @@ export interface UnsafeResult {
     customer_id?: string;
     /** Echo of provided metadata (if any) */
     metadata?: Record<string, unknown>;
+    /**
+     * Crisis support resources, present only when the result meets the
+     * request's `supportThreshold`. Localised to `context.country`.
+     */
+    support?: SupportData;
 }
 
 // =============================================================================
@@ -355,10 +517,12 @@ export interface AnalyzeInput extends TrackingFields {
     include?: Array<'bullying' | 'unsafe'>;
     /**
      * Fast mode, forwarded to each detector this call fans out to. The
-     * bullying and unsafe endpoints skip generating `rationale` — the only
-     * free-text field either produces — which cuts response size and latency.
-     * The verdict (severity, categories, recommended_action, risk_score) is
-     * unchanged, as is the combined `risk_level` this method derives.
+     * bullying and unsafe endpoints skip generating `action_detail` — the
+     * moderator-guidance expansion of `recommended_action` — which cuts
+     * response size and latency. `rationale`, the field a moderator actually
+     * reads to triage an incident, is always generated regardless of this
+     * flag. The verdict (severity, categories, recommended_action, risk_score)
+     * is unchanged, as is the combined `risk_level` this method derives.
      *
      * Because the sub-calls run in parallel, the saving here is the difference
      * on the slower detector rather than the full per-call saving.
@@ -389,6 +553,12 @@ export interface AnalyzeResult {
     customer_id?: string;
     /** Echo of provided metadata (if any) */
     metadata?: Record<string, unknown>;
+    /**
+     * Echo of provided incident_moderation_enabled (if any). The method emitted
+     * this before it forwarded the flag to the detectors it fans out to; it is
+     * now genuinely applied to both sub-calls.
+     */
+    incident_moderation_enabled?: boolean;
 }
 
 // Legacy type aliases for backwards compatibility

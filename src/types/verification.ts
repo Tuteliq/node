@@ -42,10 +42,19 @@ export interface VerificationSession {
     session_id: string;
     /** URL to open in a new tab or web view for the user to complete verification */
     url: string;
-    /** ISO timestamp when the session expires */
-    expires_at: string;
+    /** Epoch milliseconds at which the session expires */
+    expires_at: number;
     /** Verification mode */
     mode: VerificationMode;
+    /** Which checks the session will run (e.g. "document_and_selfie") */
+    verification_mode?: string;
+    /**
+     * Width, in pixels, the capture UI should request from the camera.
+     * Small print (document number, issuing authority, issue date) only
+     * survives at this resolution, so pass it through to the capture step
+     * rather than picking your own.
+     */
+    recommended_image_width?: number;
 }
 
 export interface VerificationSessionResult {
