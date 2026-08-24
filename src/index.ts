@@ -47,6 +47,7 @@ export type {
 
     // Safety types
     RecommendedAction,
+    ConversationTrajectory,
     ContextInput,
     DetectBullyingInput,
     BullyingResult,

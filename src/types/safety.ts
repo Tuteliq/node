@@ -28,6 +28,20 @@ export type RecommendedAction =
     | 'block'
     | 'immediate_intervention';
 
+/**
+ * Direction of travel across a conversation, reported alongside
+ * `trajectory_risk` by the endpoints that maintain continuation state.
+ *
+ * - `rising` — severity is trending upward across turns
+ * - `stable` — severity is holding
+ * - `declining` — severity is trending downward
+ * - `none` — not enough signal to call a direction
+ *
+ * `declining` is not the same as safe: `trajectory_risk` stays anchored on the
+ * worst turn seen and decays only slowly, which is the point.
+ */
+export type ConversationTrajectory = 'rising' | 'stable' | 'declining' | 'none';
+
 /** Weakest to strongest. Used to compare and combine actions. */
 const ACTION_RANK: Record<RecommendedAction, number> = {
     none: 0,
@@ -239,6 +253,35 @@ export interface BullyingResult {
      */
     state_source?: 'token' | 'fresh' | 'reset';
     /**
+     * Conversation-level risk (0-1). Distinct from `risk_score`, which scores
+     * only the message in this request.
+     *
+     * `risk_score` answers "should I action this message"; `trajectory_risk`
+     * answers "is this conversation going badly". They diverge exactly where it
+     * matters: a "see you tomorrow :)" sent straight after two flagged turns
+     * scores near zero on its own and 0.74 as a conversation. Branch on the
+     * higher of the two, not on `risk_score` alone.
+     *
+     * Anchored on the highest severity seen so far, decaying slowly across
+     * benign turns and never falling below the current turn. Derived from the
+     * signed `continuation_token`: no message content is stored to produce it.
+     *
+     * Absent on the first turn of a fresh conversation, where it would only
+     * restate `risk_score`.
+     */
+    trajectory_risk?: number;
+    /**
+     * Direction of travel across the conversation so far. Absent on the first
+     * turn, alongside `trajectory_risk`.
+     */
+    trajectory?: ConversationTrajectory;
+    /**
+     * Per-turn severity, oldest first — the evidence behind `trajectory_risk`.
+     * Render it rather than asserting the number: it is what shows a moderator
+     * why a benign-looking message arrived with elevated conversation risk.
+     */
+    severity_series?: number[];
+    /**
      * Crisis support resources, present only when the result meets the
      * request's `supportThreshold`. Localised to `context.country`.
      */
@@ -351,6 +394,33 @@ export interface GroomingResult {
      * "fresh" (no prior state), "reset" (reset_conversation forced a restart).
      */
     state_source?: 'token' | 'fresh' | 'reset';
+    /**
+     * Conversation-level risk (0-1) across every window seen so far. Distinct
+     * from `risk_score`, which scores only the messages in this request.
+     *
+     * Grooming is a slow burn, so a chunked conversation whose current window
+     * reads benign can still be at high conversation risk. Branch on the higher
+     * of the two, not on `risk_score` alone.
+     *
+     * Anchored on the highest severity seen so far, decaying slowly across
+     * benign windows and never falling below the current one. Derived from the
+     * signed `continuation_token`: no message content is stored to produce it.
+     *
+     * Absent on the first call of a fresh conversation.
+     */
+    trajectory_risk?: number;
+    /**
+     * Direction of travel across the conversation so far. Absent on the first
+     * call, alongside `trajectory_risk`.
+     */
+    trajectory?: ConversationTrajectory;
+    /**
+     * Per-window severity, oldest first — the evidence behind
+     * `trajectory_risk`. Render it rather than asserting the number: it is what
+     * shows a moderator why a benign-looking window carries elevated
+     * conversation risk.
+     */
+    severity_series?: number[];
     /**
      * Crisis support resources, present only when the result meets the
      * request's `supportThreshold`. Localised to `context.country`.
@@ -468,6 +538,12 @@ export interface AnalyzeResult {
     customer_id?: string;
     /** Echo of provided metadata (if any) */
     metadata?: Record<string, unknown>;
+    /**
+     * Echo of provided incident_moderation_enabled (if any). The method emitted
+     * this before it forwarded the flag to the detectors it fans out to; it is
+     * now genuinely applied to both sub-calls.
+     */
+    incident_moderation_enabled?: boolean;
 }
 
 // Legacy type aliases for backwards compatibility

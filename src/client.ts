@@ -864,6 +864,11 @@ export class Tuteliq {
                 external_id: input.external_id,
                 customer_id: input.customer_id,
                 metadata: input.metadata,
+                // Forwarded, not just echoed. `analyze()` used to accept this
+                // (it is on the shared TrackingFields), drop it on the way out,
+                // and then copy it into its own result — so `false` read back
+                // as honoured while both sub-calls still logged an incident.
+                incident_moderation_enabled: input.incident_moderation_enabled,
             }));
         }
 
@@ -876,6 +881,7 @@ export class Tuteliq {
                 external_id: input.external_id,
                 customer_id: input.customer_id,
                 metadata: input.metadata,
+                incident_moderation_enabled: input.incident_moderation_enabled,
             }));
         }
 
@@ -942,6 +948,7 @@ export class Tuteliq {
             ...(input.external_id && { external_id: input.external_id }),
             ...(input.customer_id && { customer_id: input.customer_id }),
             ...(input.metadata && { metadata: input.metadata }),
+            ...(input.incident_moderation_enabled !== undefined && { incident_moderation_enabled: input.incident_moderation_enabled }),
         };
     }
 

@@ -1,5 +1,5 @@
 import { TrackingFields } from './index.js';
-import { ContextInput, RecommendedAction, SupportData } from './safety.js';
+import { ContextInput, ConversationTrajectory, RecommendedAction, SupportData } from './safety.js';
 import { LanguageStatus } from '../constants.js';
 
 export { LanguageStatus };
@@ -158,6 +158,32 @@ export interface DetectionResult {
      * "fresh" (no prior state), "reset" (reset_conversation forced a restart).
      */
     state_source?: 'token' | 'fresh' | 'reset';
+    /**
+     * Conversation-level risk (0-1). Distinct from `risk_score`, which scores
+     * only the content in this request.
+     *
+     * Returned by the same endpoints that issue a `continuation_token`
+     * (coercive-control, vulnerability-exploitation, distress-signals) once
+     * there is more than one turn to reason across. Anchored on the highest
+     * severity seen so far, decaying slowly across benign turns and never
+     * falling below the current turn, so a calm message after an escalation
+     * does not reset the picture. Derived from the signed token: no message
+     * content is stored to produce it.
+     *
+     * Absent on the first turn, and on endpoints that do not track state.
+     */
+    trajectory_risk?: number;
+    /**
+     * Direction of travel across the conversation so far. Absent on the first
+     * turn, alongside `trajectory_risk`.
+     */
+    trajectory?: ConversationTrajectory;
+    /**
+     * Per-turn severity, oldest first — the evidence behind `trajectory_risk`,
+     * so a moderator can see why a benign-looking turn carries elevated
+     * conversation risk.
+     */
+    severity_series?: number[];
     /**
      * Crisis support resources, present only when the result meets the
      * request's `supportThreshold`. Localised to `context.country`.
