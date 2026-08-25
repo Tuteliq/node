@@ -718,6 +718,7 @@ export class Tuteliq {
         const options: Record<string, unknown> = {};
         if (input.supportThreshold) options.support_threshold = input.supportThreshold;
         if (input.verdictOnly) options.verdict_only = true;
+        if (input.flagProfanity !== undefined) options.flag_profanity = input.flagProfanity;
 
         return this.requestWithRetry<BullyingResult>(
             'POST',
@@ -819,6 +820,7 @@ export class Tuteliq {
         const options: Record<string, unknown> = {};
         if (input.supportThreshold) options.support_threshold = input.supportThreshold;
         if (input.verdictOnly) options.verdict_only = true;
+        if (input.flagProfanity !== undefined) options.flag_profanity = input.flagProfanity;
 
         return this.requestWithRetry<UnsafeResult>(
             'POST',

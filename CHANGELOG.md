@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.27.0] - 2026-08-25
+
+### Added
+
+- **`flagProfanity` on `detectBullying` / `detectUnsafe`, and `profanity` / `escalation_capped` / `escalation_capped_reason` on `BullyingResult` / `UnsafeResult`.** The API added `options.flag_profanity` (a free, deterministic, additive word-list flag — never affects `is_bullying`/`unsafe`/`severity`/`risk_score`/`recommended_action`) and an account-level `default_flag_profanity` setting, plus `escalation_capped` on the coded-term corroboration cap, but neither reached the SDK's types or request body. A customer testing `default_flag_profanity` through the SDK had no typed way to override it per-request and no `profanity` field on the result, even though the API already supported both. Explicit `flagProfanity: true` or `flagProfanity: false` both reach the API (an explicit `false` overrides the account default, same precedence as the API itself); omit it to use the account default. **Requires the API deployed on or after 2026-08-25.**
+
+  Not yet forwarded through the combined `analyze()` method, which fans out to `detectBullying`/`detectUnsafe` client-side — only the two direct detection methods.
+
 ## [2.26.0] - 2026-08-24
 
 ### Changed
