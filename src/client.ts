@@ -1862,6 +1862,7 @@ export class Tuteliq {
         if (input.ageGroup) formData.append('age_group', input.ageGroup);
         formData.append('platform', Tuteliq.resolvePlatform(input.platform));
         if (input.metadata) formData.append('metadata', JSON.stringify(input.metadata));
+        if (input.flagProfanity !== undefined) formData.append('flag_profanity', String(input.flagProfanity));
 
         return withRetry(
             () => this.multipartRequest<ImageAnalysisResult>(

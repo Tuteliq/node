@@ -223,6 +223,18 @@ export interface AnalyzeImageInput extends TrackingFields {
     ageGroup?: string;
     /** Platform name */
     platform?: string;
+    /**
+     * Additive, deterministic word-list flag for plain profanity/vulgarity
+     * found in the image's OCR'd text. When true, adds a `profanity` field to
+     * the response — never affects `overall_severity`, `recommended_action`,
+     * or any `text_analysis` result. Free — no extra credits. Only meaningful
+     * when the image actually contains OCR text (`vision.contains_text`);
+     * a no-text image never gets a `profanity` field regardless of this flag.
+     * Explicit `true`/`false` here always overrides your account's
+     * `default_flag_profanity` setting for this call; omit to use the
+     * account default. **Requires the API deployed on or after 2026-08-25.**
+     */
+    flagProfanity?: boolean;
 }
 
 export interface ImageAnalysisResult {
@@ -270,6 +282,14 @@ export interface ImageAnalysisResult {
     customer_id?: string;
     /** Echo of provided metadata */
     metadata?: Record<string, unknown>;
+    /**
+     * Present only when `flagProfanity` on this request (or the account-level
+     * `default_flag_profanity` setting) is true AND the image contained OCR
+     * text (`vision.contains_text`). Deterministic word-list result over the
+     * OCR'd text — additive, never affects `overall_severity`,
+     * `recommended_action`, or any `text_analysis` result.
+     */
+    profanity?: { detected: boolean; matches: string[] } | null;
 }
 
 // =============================================================================

@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.28.0] - 2026-08-25
+
+### Added
+
+- **`flagProfanity` on `analyzeImage`, and `profanity` on `ImageAnalysisResult`.** Extends the `flagProfanity`/`profanity` pair added to `detectBullying`/`detectUnsafe` in 2.27.0 to the image endpoint: the API now runs the same free, deterministic, additive word-list check over an image's OCR'd text (`vision.extracted_text`) when `flag_profanity` is set on the request or the account's `default_flag_profanity` setting is on. Only meaningful when the image actually contains OCR text — `vision.contains_text: false` never produces a `profanity` field regardless of the flag. Never affects `overall_severity`, `recommended_action`, or any `text_analysis` result. Video was evaluated and left out: the API's video analysis has no OCR/text-extraction path to attach this to. **Requires the API deployed on or after 2026-08-25.**
+
 ## [2.27.0] - 2026-08-25
 
 ### Added

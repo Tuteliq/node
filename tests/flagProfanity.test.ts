@@ -48,6 +48,24 @@ const unsafeResponse = {
     recommended_action: 'none',
 };
 
+const imageResponse = {
+    vision: {
+        extracted_text: 'some text',
+        visual_categories: [],
+        visual_severity: 'low',
+        visual_confidence: 0.9,
+        visual_description: 'a screenshot',
+        contains_text: true,
+        contains_faces: false,
+    },
+    overall_risk_score: 0.1,
+    overall_severity: 'low',
+    detected: false,
+    confidence: 0.9,
+    recommended_action: 'none',
+    rationale: 'Safe',
+};
+
 describe('flagProfanity forwarding', () => {
     let client: Tuteliq;
 
@@ -127,5 +145,47 @@ describe('flagProfanity forwarding', () => {
         expect(options.flag_profanity).toBe(true);
         expect(options.verdict_only).toBe(true);
         expect(options.support_threshold).toBe('high');
+    });
+
+    // -------------------------------------------------------------------------
+    // analyzeImage -- multipart/form-data request, not a JSON body, so
+    // flag_profanity is asserted on the FormData sent to fetch rather than a
+    // parsed JSON body.
+    // -------------------------------------------------------------------------
+
+    it('analyzeImage: sends nothing when flagProfanity is not set (server applies the account default)', async () => {
+        client = new Tuteliq('test-api-key', { timeout: 5000, retries: 0 });
+        const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValueOnce(mockFetchResponse(imageResponse));
+        await client.analyzeImage({ file: Buffer.from('fake image'), filename: 'screenshot.png' });
+        const body = fetchSpy.mock.calls[0][1]?.body as FormData;
+        expect(body.get('flag_profanity')).toBeNull();
+    });
+
+    it('analyzeImage: forwards flagProfanity: true as flag_profanity', async () => {
+        client = new Tuteliq('test-api-key', { timeout: 5000, retries: 0 });
+        const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValueOnce(mockFetchResponse(imageResponse));
+        await client.analyzeImage({ file: Buffer.from('fake image'), filename: 'screenshot.png', flagProfanity: true });
+        const body = fetchSpy.mock.calls[0][1]?.body as FormData;
+        expect(body.get('flag_profanity')).toBe('true');
+    });
+
+    it('analyzeImage: forwards an explicit flagProfanity: false (does not drop it)', async () => {
+        client = new Tuteliq('test-api-key', { timeout: 5000, retries: 0 });
+        const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValueOnce(mockFetchResponse(imageResponse));
+        await client.analyzeImage({ file: Buffer.from('fake image'), filename: 'screenshot.png', flagProfanity: false });
+        const body = fetchSpy.mock.calls[0][1]?.body as FormData;
+        expect(body.get('flag_profanity')).toBe('false');
+    });
+
+    it('analyzeImage: types and passes through the profanity field on the result', async () => {
+        client = new Tuteliq('test-api-key', { timeout: 5000, retries: 0 });
+        vi.spyOn(global, 'fetch').mockResolvedValueOnce(
+            mockFetchResponse({ ...imageResponse, profanity: { detected: true, matches: ['fuck'] } }),
+        );
+        const result = await client.analyzeImage({ file: Buffer.from('fake image'), filename: 'screenshot.png', flagProfanity: true });
+        expect(result.profanity).toEqual({ detected: true, matches: ['fuck'] });
+        // Additive only -- untouched by the profanity match.
+        expect(result.detected).toBe(false);
+        expect(result.recommended_action).toBe('none');
     });
 });
