@@ -110,7 +110,12 @@ export type ContextInput = string | {
     ageGroup?: string;
     /** Relationship between participants (e.g., "classmates", "strangers") */
     relationship?: string;
-    /** Platform type (e.g., "chat", "social_media", "gaming") */
+    /**
+     * Your platform/app name (e.g. "MyApp", "Discord Bot"), used for dashboard
+     * attribution and calibration. The SDK appends its own identifier before
+     * sending it — "MyApp" is sent to the API as "MyApp - Node SDK" — so pass
+     * your product's name here, not a category like "chat" or "social_media".
+     */
     platform?: string;
     /** ISO 3166-1 alpha-2 country code (e.g., "GB", "US") for geo-localised helpline data */
     country?: string;

@@ -236,6 +236,11 @@ export interface BatchItemBase {
         language?: string;
         ageGroup?: string;
         relationship?: string;
+        /**
+         * Your platform/app name (e.g. "MyApp"), used for dashboard
+         * attribution. The SDK appends its own identifier before sending it —
+         * "MyApp" is sent to the API as "MyApp - Node SDK".
+         */
         platform?: string;
         country?: string;
     };

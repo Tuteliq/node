@@ -47,7 +47,13 @@ export interface AnalyzeVoiceInput extends TrackingFields {
     ageGroup?: string;
     /** Language hint */
     language?: string;
-    /** Platform name */
+    /**
+     * Your platform/app name (e.g. "MyApp", "Discord Bot"), used for dashboard
+     * attribution and calibration. The SDK appends its own identifier before
+     * sending it — "MyApp" is sent to the API as "MyApp - Node SDK" — so
+     * pass your product's name here, not a category like "chat" or
+     * "social_media".
+     */
     platform?: string;
     /** Child's age (used for grooming analysis) */
     childAge?: number;
@@ -138,7 +144,13 @@ export interface AnalyzeVideoInput extends TrackingFields {
     fileId?: string;
     /** Age group for calibrated analysis */
     ageGroup?: string;
-    /** Platform name */
+    /**
+     * Your platform/app name (e.g. "MyApp", "Discord Bot"), used for dashboard
+     * attribution and calibration. The SDK appends its own identifier before
+     * sending it — "MyApp" is sent to the API as "MyApp - Node SDK" — so
+     * pass your product's name here, not a category like "chat" or
+     * "social_media".
+     */
     platform?: string;
     /**
      * Additive, deterministic word-list flag for plain profanity/vulgarity
@@ -251,7 +263,13 @@ export interface AnalyzeImageInput extends TrackingFields {
     fileId?: string;
     /** Age group for calibrated analysis */
     ageGroup?: string;
-    /** Platform name */
+    /**
+     * Your platform/app name (e.g. "MyApp", "Discord Bot"), used for dashboard
+     * attribution and calibration. The SDK appends its own identifier before
+     * sending it — "MyApp" is sent to the API as "MyApp - Node SDK" — so
+     * pass your product's name here, not a category like "chat" or
+     * "social_media".
+     */
     platform?: string;
     /**
      * Additive, deterministic word-list flag for plain profanity/vulgarity
@@ -350,7 +368,13 @@ export interface AnalyzeDocumentInput extends TrackingFields {
     ageGroup?: string;
     /** Language hint (ISO 639-1) */
     language?: string;
-    /** Platform name */
+    /**
+     * Your platform/app name (e.g. "MyApp", "Discord Bot"), used for dashboard
+     * attribution and calibration. The SDK appends its own identifier before
+     * sending it — "MyApp" is sent to the API as "MyApp - Node SDK" — so
+     * pass your product's name here, not a category like "chat" or
+     * "social_media".
+     */
     platform?: string;
     /** Minimum severity to include crisis helplines. Default: "high". */
     supportThreshold?: 'low' | 'medium' | 'high' | 'critical';
