@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.30.0] - 2026-08-26
+
+### Added
+
+- **`categories` on `VideoAnalysisResult`.** `analyzeVideo` already computed a deduped list of visual harm categories across every flagged frame server-side, but only folded it into the free-text `rationale` string — no field existed to read it from without parsing `frame_results` yourself. A client integration that expected a top-level `categories` field (matching every other detection endpoint) got silent empty results instead of an error. **Requires the API deployed on or after 2026-08-26.**
+
+- **`flagProfanity` on `analyzeVideo`, and `profanity` on `VideoAnalysisResult`.** Closes the evasion path left open by shipping profanity on `analyzeImage` alone (2.28.0): burning the same text into a video frame instead of a still image previously never reached the word-list check. The API already runs OCR per frame for video (same vision call as the image endpoint) — it's now aggregated across every frame that has text and checked the same way, with identical precedence to `flagProfanity` elsewhere: explicit per-request value wins, otherwise the account's `default_flag_profanity` setting applies. Only meaningful when at least one frame actually contains OCR text — a video with no on-screen text never gets a `profanity` field regardless of this flag. **Requires the API deployed on or after 2026-08-26.**
+
 ## [2.29.0] - 2026-08-26
 
 ### Fixed

@@ -140,6 +140,20 @@ export interface AnalyzeVideoInput extends TrackingFields {
     ageGroup?: string;
     /** Platform name */
     platform?: string;
+    /**
+     * Additive, deterministic word-list flag for plain profanity/vulgarity
+     * found in the video's OCR'd text (aggregated across every frame that has
+     * any). When true, adds a `profanity` field to the response — never
+     * affects `frame_results`, `overall_severity`, or `recommended_action`.
+     * Free — no extra credits. Only meaningful when at least one frame
+     * actually contains OCR text (see `contains_text` semantics on the image
+     * endpoint) — a video with no on-screen text never gets a `profanity`
+     * field regardless of this flag. Explicit `true`/`false` here always
+     * overrides your account's `default_flag_profanity` setting for this
+     * call; omit to use the account default. **Requires the API deployed on
+     * or after 2026-08-26.**
+     */
+    flagProfanity?: boolean;
 }
 
 export interface VideoAnalysisResult {
@@ -151,6 +165,14 @@ export interface VideoAnalysisResult {
     duration_seconds: number;
     /** Per-frame analysis, one entry per sampled frame */
     frame_results: VideoFrameResult[];
+    /**
+     * Visual harm categories across every flagged frame, deduped. Was
+     * previously computed server-side but only folded into the free-text
+     * `rationale` string, with no field to read it from without parsing
+     * `frame_results` yourself. **Requires the API deployed on or after
+     * 2026-08-26.**
+     */
+    categories: string[];
     /** Points in the video that exceeded the reporting threshold */
     flagged_timestamps: VideoFlaggedTimestamp[];
     /** Maximum risk score across all findings (0-1) */
@@ -187,6 +209,14 @@ export interface VideoAnalysisResult {
     customer_id?: string;
     /** Echo of provided metadata */
     metadata?: Record<string, unknown>;
+    /**
+     * Present only when `flagProfanity` on this request (or the account-level
+     * `default_flag_profanity` setting) is true AND at least one frame
+     * contained OCR text. Deterministic word-list result over the OCR text
+     * aggregated across frames — additive, never affects `frame_results`,
+     * `overall_severity`, or `recommended_action`.
+     */
+    profanity?: { detected: boolean; matches: string[] } | null;
 }
 
 // =============================================================================

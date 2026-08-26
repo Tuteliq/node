@@ -66,6 +66,19 @@ const imageResponse = {
     rationale: 'Safe',
 };
 
+const videoResponse = {
+    frames_analyzed: 3,
+    duration_seconds: 15,
+    frame_results: [],
+    categories: [],
+    overall_risk_score: 0.1,
+    overall_severity: 'low',
+    detected: false,
+    confidence: 0.9,
+    recommended_action: 'none',
+    rationale: 'Safe',
+};
+
 describe('flagProfanity forwarding', () => {
     let client: Tuteliq;
 
@@ -183,6 +196,50 @@ describe('flagProfanity forwarding', () => {
             mockFetchResponse({ ...imageResponse, profanity: { detected: true, matches: ['fuck'] } }),
         );
         const result = await client.analyzeImage({ file: Buffer.from('fake image'), filename: 'screenshot.png', flagProfanity: true });
+        expect(result.profanity).toEqual({ detected: true, matches: ['fuck'] });
+        // Additive only -- untouched by the profanity match.
+        expect(result.detected).toBe(false);
+        expect(result.recommended_action).toBe('none');
+    });
+
+    // -------------------------------------------------------------------------
+    // analyzeVideo -- same shape as analyzeImage's flag_profanity forwarding,
+    // but over OCR text aggregated across every frame that has any. Closes
+    // the evasion path opened by shipping profanity on image alone: burn the
+    // same text into a video frame instead of a still and it would otherwise
+    // never reach the word list.
+    // -------------------------------------------------------------------------
+
+    it('analyzeVideo: sends nothing when flagProfanity is not set (server applies the account default)', async () => {
+        client = new Tuteliq('test-api-key', { timeout: 5000, retries: 0 });
+        const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValueOnce(mockFetchResponse(videoResponse));
+        await client.analyzeVideo({ file: Buffer.from('fake video'), filename: 'clip.mp4' });
+        const body = fetchSpy.mock.calls[0][1]?.body as FormData;
+        expect(body.get('flag_profanity')).toBeNull();
+    });
+
+    it('analyzeVideo: forwards flagProfanity: true as flag_profanity', async () => {
+        client = new Tuteliq('test-api-key', { timeout: 5000, retries: 0 });
+        const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValueOnce(mockFetchResponse(videoResponse));
+        await client.analyzeVideo({ file: Buffer.from('fake video'), filename: 'clip.mp4', flagProfanity: true });
+        const body = fetchSpy.mock.calls[0][1]?.body as FormData;
+        expect(body.get('flag_profanity')).toBe('true');
+    });
+
+    it('analyzeVideo: forwards an explicit flagProfanity: false (does not drop it)', async () => {
+        client = new Tuteliq('test-api-key', { timeout: 5000, retries: 0 });
+        const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValueOnce(mockFetchResponse(videoResponse));
+        await client.analyzeVideo({ file: Buffer.from('fake video'), filename: 'clip.mp4', flagProfanity: false });
+        const body = fetchSpy.mock.calls[0][1]?.body as FormData;
+        expect(body.get('flag_profanity')).toBe('false');
+    });
+
+    it('analyzeVideo: types and passes through the profanity field on the result', async () => {
+        client = new Tuteliq('test-api-key', { timeout: 5000, retries: 0 });
+        vi.spyOn(global, 'fetch').mockResolvedValueOnce(
+            mockFetchResponse({ ...videoResponse, profanity: { detected: true, matches: ['fuck'] } }),
+        );
+        const result = await client.analyzeVideo({ file: Buffer.from('fake video'), filename: 'clip.mp4', flagProfanity: true });
         expect(result.profanity).toEqual({ detected: true, matches: ['fuck'] });
         // Additive only -- untouched by the profanity match.
         expect(result.detected).toBe(false);
