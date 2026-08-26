@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.29.0] - 2026-08-26
+
+### Fixed
+
+- **`flagProfanity` is now forwarded through `analyze()`.** Same gap `verdictOnly` had in 2.19, fixed in 2.20: `AnalyzeInput` accepted `flagProfanity`, but `analyze()` never passed it to the `detectBullying`/`detectUnsafe` calls it fans out to. Didn't block anyone — the account's `default_flag_profanity` setting still applied — but per-request override wasn't reachable through the combined method. `result.bullying.profanity`/`result.unsafe.profanity` were already typed correctly and now populate as expected.
+
 ## [2.28.0] - 2026-08-25
 
 ### Added

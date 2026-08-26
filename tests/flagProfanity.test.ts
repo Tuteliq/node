@@ -188,4 +188,60 @@ describe('flagProfanity forwarding', () => {
         expect(result.detected).toBe(false);
         expect(result.recommended_action).toBe('none');
     });
+
+    // -------------------------------------------------------------------------
+    // analyze() -- same gap verdictOnly had (accepted on AnalyzeInput, never
+    // forwarded to the detectBullying/detectUnsafe calls it fans out to).
+    // Account default still applied without this, so it never blocked anyone,
+    // but per-request override wasn't reachable through analyze().
+    // -------------------------------------------------------------------------
+
+    it('analyze(): forwards flagProfanity to both detectBullying and detectUnsafe', async () => {
+        client = new Tuteliq('test-api-key', { timeout: 5000, retries: 0 });
+        const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValue(mockFetchResponse(bullyingResponse));
+
+        await client.analyze({ content: 'fucks sake', flagProfanity: true });
+
+        expect(fetchSpy).toHaveBeenCalledTimes(2);
+        for (const call of fetchSpy.mock.calls) {
+            const body = JSON.parse((call[1] as RequestInit).body as string);
+            expect((body.options as Record<string, unknown>).flag_profanity).toBe(true);
+        }
+    });
+
+    it('analyze(): forwards an explicit flagProfanity: false to both detectors', async () => {
+        client = new Tuteliq('test-api-key', { timeout: 5000, retries: 0 });
+        const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValue(mockFetchResponse(bullyingResponse));
+
+        await client.analyze({ content: 'hello', flagProfanity: false });
+
+        for (const call of fetchSpy.mock.calls) {
+            const body = JSON.parse((call[1] as RequestInit).body as string);
+            expect((body.options as Record<string, unknown>).flag_profanity).toBe(false);
+        }
+    });
+
+    it('analyze(): sends nothing when flagProfanity is not set (server applies the account default)', async () => {
+        client = new Tuteliq('test-api-key', { timeout: 5000, retries: 0 });
+        const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValue(mockFetchResponse(bullyingResponse));
+
+        await client.analyze({ content: 'hello' });
+
+        for (const call of fetchSpy.mock.calls) {
+            const body = JSON.parse((call[1] as RequestInit).body as string);
+            expect(body.options).toBeUndefined();
+        }
+    });
+
+    it('analyze(): result.bullying/result.unsafe carry the profanity field through', async () => {
+        client = new Tuteliq('test-api-key', { timeout: 5000, retries: 0 });
+        vi.spyOn(global, 'fetch').mockResolvedValue(
+            mockFetchResponse({ ...bullyingResponse, profanity: { detected: true, matches: ['fuck'] } }),
+        );
+
+        const result = await client.analyze({ content: 'fucks sake', flagProfanity: true });
+
+        expect(result.bullying?.profanity).toEqual({ detected: true, matches: ['fuck'] });
+        expect(result.unsafe?.profanity).toEqual({ detected: true, matches: ['fuck'] });
+    });
 });

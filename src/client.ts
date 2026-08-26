@@ -880,6 +880,9 @@ export class Tuteliq {
                 // and then copy it into its own result — so `false` read back
                 // as honoured while both sub-calls still logged an incident.
                 incident_moderation_enabled: input.incident_moderation_enabled,
+                // Same gap verdictOnly had before it: accepted on AnalyzeInput
+                // but never reached the detectors it fans out to.
+                flagProfanity: input.flagProfanity,
             }));
         }
 
@@ -893,6 +896,7 @@ export class Tuteliq {
                 customer_id: input.customer_id,
                 metadata: input.metadata,
                 incident_moderation_enabled: input.incident_moderation_enabled,
+                flagProfanity: input.flagProfanity,
             }));
         }
 

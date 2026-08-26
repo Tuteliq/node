@@ -582,6 +582,15 @@ export interface AnalyzeInput extends TrackingFields {
      * on the slower detector rather than the full per-call saving.
      */
     verdictOnly?: boolean;
+    /**
+     * Forwarded to each detector this call fans out to, same semantics as
+     * `flagProfanity` on `detectBullying`/`detectUnsafe` directly: an
+     * additive, deterministic word-list flag that adds a `profanity` field to
+     * `result.bullying`/`result.unsafe`, never affecting risk scoring or
+     * `recommended_action`. Omit to use the account's `default_flag_profanity`
+     * setting. **Requires the API deployed on or after 2026-08-25.**
+     */
+    flagProfanity?: boolean;
 }
 
 export interface AnalyzeResult {
