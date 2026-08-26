@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.30.1] - 2026-08-26
+
+### Fixed
+
+- **`context.platform`'s doc comment described the wrong thing.** It read "Platform type (e.g. \"chat\", \"social_media\", \"gaming\")", but the SDK treats the value as your app/product name and appends its own identifier before sending it — `"MyApp"` reaches the API as `"MyApp - Node SDK"`. Following the old doc's examples sent a bare category string instead of an identifiable app name, which is what shows up for dashboard attribution. Corrected here and on the equivalent `platform` fields across image/video/voice/document/synthetic-content inputs and the batch/voice-stream context shapes. No behavior change — types and doc comments only.
+
 ## [2.30.0] - 2026-08-26
 
 ### Added
