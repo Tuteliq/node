@@ -202,6 +202,17 @@ export interface DetectBullyingInput extends TrackingFields {
      * conversation. Useful when starting a new chat in the same session.
      */
     resetConversation?: boolean;
+    /**
+     * Additive, deterministic word-list flag for plain profanity/vulgarity.
+     * When true, adds a `profanity` field to the response — never affects
+     * `is_bullying`, `severity`, `risk_score`, or `recommended_action`. Free —
+     * no extra credits. Not a harm classifier: does not cover slurs or hate
+     * speech, which the detector itself already handles with full context.
+     * Explicit `true`/`false` here always overrides your account's
+     * `default_flag_profanity` setting for this call; omit to use the
+     * account default. **Requires the API deployed on or after 2026-08-25.**
+     */
+    flagProfanity?: boolean;
 }
 
 export interface BullyingResult {
@@ -285,6 +296,22 @@ export interface BullyingResult {
      * why a benign-looking message arrived with elevated conversation risk.
      */
     severity_series?: number[];
+    /**
+     * True when a coded-term match pushed severity toward critical but this
+     * endpoint's corroboration-cap logic held `recommended_action` below
+     * `immediate_intervention` pending independent confirmation. Absent when
+     * no cap applied.
+     */
+    escalation_capped?: boolean;
+    /** Human-readable explanation of the cap. Present only when `escalation_capped` is true. */
+    escalation_capped_reason?: string;
+    /**
+     * Present only when `flagProfanity` on this request (or the account-level
+     * `default_flag_profanity` setting) is true. Deterministic word-list
+     * result — additive, never affects `is_bullying`/`severity`/`risk_score`/
+     * `recommended_action`.
+     */
+    profanity?: { detected: boolean; matches: string[] } | null;
     /**
      * Crisis support resources, present only when the result meets the
      * request's `supportThreshold`. Localised to `context.country`.
@@ -454,6 +481,17 @@ export interface DetectUnsafeInput extends TrackingFields {
      * and a smaller payload for real-time screening; the verdict is unchanged.
      */
     verdictOnly?: boolean;
+    /**
+     * Additive, deterministic word-list flag for plain profanity/vulgarity.
+     * When true, adds a `profanity` field to the response — never affects
+     * `unsafe`, `severity`, `risk_score`, or `recommended_action`. Free — no
+     * extra credits. Not a harm classifier: does not cover slurs or hate
+     * speech, which the detector itself already handles with full context.
+     * Explicit `true`/`false` here always overrides your account's
+     * `default_flag_profanity` setting for this call; omit to use the
+     * account default. **Requires the API deployed on or after 2026-08-25.**
+     */
+    flagProfanity?: boolean;
 }
 
 export interface UnsafeResult {
@@ -498,6 +536,22 @@ export interface UnsafeResult {
     /** Echo of provided metadata (if any) */
     metadata?: Record<string, unknown>;
     /**
+     * True when a coded-term match pushed severity toward critical but this
+     * endpoint's corroboration-cap logic held `recommended_action` below
+     * `immediate_intervention` pending independent confirmation. Absent when
+     * no cap applied.
+     */
+    escalation_capped?: boolean;
+    /** Human-readable explanation of the cap. Present only when `escalation_capped` is true. */
+    escalation_capped_reason?: string;
+    /**
+     * Present only when `flagProfanity` on this request (or the account-level
+     * `default_flag_profanity` setting) is true. Deterministic word-list
+     * result — additive, never affects `unsafe`/`severity`/`risk_score`/
+     * `recommended_action`.
+     */
+    profanity?: { detected: boolean; matches: string[] } | null;
+    /**
      * Crisis support resources, present only when the result meets the
      * request's `supportThreshold`. Localised to `context.country`.
      */
@@ -528,6 +582,15 @@ export interface AnalyzeInput extends TrackingFields {
      * on the slower detector rather than the full per-call saving.
      */
     verdictOnly?: boolean;
+    /**
+     * Forwarded to each detector this call fans out to, same semantics as
+     * `flagProfanity` on `detectBullying`/`detectUnsafe` directly: an
+     * additive, deterministic word-list flag that adds a `profanity` field to
+     * `result.bullying`/`result.unsafe`, never affecting risk scoring or
+     * `recommended_action`. Omit to use the account's `default_flag_profanity`
+     * setting. **Requires the API deployed on or after 2026-08-25.**
+     */
+    flagProfanity?: boolean;
 }
 
 export interface AnalyzeResult {

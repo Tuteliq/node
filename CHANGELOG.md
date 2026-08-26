@@ -5,6 +5,34 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.30.0] - 2026-08-26
+
+### Added
+
+- **`categories` on `VideoAnalysisResult`.** `analyzeVideo` already computed a deduped list of visual harm categories across every flagged frame server-side, but only folded it into the free-text `rationale` string — no field existed to read it from without parsing `frame_results` yourself. A client integration that expected a top-level `categories` field (matching every other detection endpoint) got silent empty results instead of an error. **Requires the API deployed on or after 2026-08-26.**
+
+- **`flagProfanity` on `analyzeVideo`, and `profanity` on `VideoAnalysisResult`.** Closes the evasion path left open by shipping profanity on `analyzeImage` alone (2.28.0): burning the same text into a video frame instead of a still image previously never reached the word-list check. The API already runs OCR per frame for video (same vision call as the image endpoint) — it's now aggregated across every frame that has text and checked the same way, with identical precedence to `flagProfanity` elsewhere: explicit per-request value wins, otherwise the account's `default_flag_profanity` setting applies. Only meaningful when at least one frame actually contains OCR text — a video with no on-screen text never gets a `profanity` field regardless of this flag. **Requires the API deployed on or after 2026-08-26.**
+
+## [2.29.0] - 2026-08-26
+
+### Fixed
+
+- **`flagProfanity` is now forwarded through `analyze()`.** Same gap `verdictOnly` had in 2.19, fixed in 2.20: `AnalyzeInput` accepted `flagProfanity`, but `analyze()` never passed it to the `detectBullying`/`detectUnsafe` calls it fans out to. Didn't block anyone — the account's `default_flag_profanity` setting still applied — but per-request override wasn't reachable through the combined method. `result.bullying.profanity`/`result.unsafe.profanity` were already typed correctly and now populate as expected.
+
+## [2.28.0] - 2026-08-25
+
+### Added
+
+- **`flagProfanity` on `analyzeImage`, and `profanity` on `ImageAnalysisResult`.** Extends the `flagProfanity`/`profanity` pair added to `detectBullying`/`detectUnsafe` in 2.27.0 to the image endpoint: the API now runs the same free, deterministic, additive word-list check over an image's OCR'd text (`vision.extracted_text`) when `flag_profanity` is set on the request or the account's `default_flag_profanity` setting is on. Only meaningful when the image actually contains OCR text — `vision.contains_text: false` never produces a `profanity` field regardless of the flag. Never affects `overall_severity`, `recommended_action`, or any `text_analysis` result. Video was evaluated and left out: the API's video analysis has no OCR/text-extraction path to attach this to. **Requires the API deployed on or after 2026-08-25.**
+
+## [2.27.0] - 2026-08-25
+
+### Added
+
+- **`flagProfanity` on `detectBullying` / `detectUnsafe`, and `profanity` / `escalation_capped` / `escalation_capped_reason` on `BullyingResult` / `UnsafeResult`.** The API added `options.flag_profanity` (a free, deterministic, additive word-list flag — never affects `is_bullying`/`unsafe`/`severity`/`risk_score`/`recommended_action`) and an account-level `default_flag_profanity` setting, plus `escalation_capped` on the coded-term corroboration cap, but neither reached the SDK's types or request body. A customer testing `default_flag_profanity` through the SDK had no typed way to override it per-request and no `profanity` field on the result, even though the API already supported both. Explicit `flagProfanity: true` or `flagProfanity: false` both reach the API (an explicit `false` overrides the account default, same precedence as the API itself); omit it to use the account default. **Requires the API deployed on or after 2026-08-25.**
+
+  Not yet forwarded through the combined `analyze()` method, which fans out to `detectBullying`/`detectUnsafe` client-side — only the two direct detection methods.
+
 ## [2.26.0] - 2026-08-24
 
 ### Changed
