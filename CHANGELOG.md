@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.31.0] - 2026-08-27
+
+### Added
+
+- **`flagRiskTerms` on `detectBullying`/`detectUnsafe`/`analyze()`, and `risk_terms` on `BullyingResult`/`UnsafeResult`.** The API added `options.flag_risk_terms` (a free, deterministic, additive word-list flag for bare drug/violence terms — never affects `is_bullying`/`unsafe`/`severity`/`risk_score`/`recommended_action`) and an account-level `default_flag_risk_terms` setting alongside `flag_profanity` (PR #149), but neither reached the SDK. Same precedence and shape as `flagProfanity`: explicit `true`/`false` on a call always overrides the account default; `analyze()` forwards it to both sub-calls from day one, unlike `flagProfanity` which needed a follow-up release (2.29.0) to close that gap. **Requires the API deployed on or after 2026-08-25.**
+
+- **`default_flag_profanity` / `default_flag_risk_terms` on `DetectionSettings` and `UpdateDetectionSettingsInput`.** Both existed on the API's `GET`/`PUT /settings/detection` since PR #149, but the SDK's settings types never declared them — `updateDetectionSettings({ default_flag_profanity: true })` needed an `as any` cast to compile, and `getDetectionSettings()`'s return type hid the fields even though the raw response carried them through. `updateDetectionSettings`/`getDetectionSettings` already forward arbitrary JSON through `requestWithRetry` untyped, so this is a types-only fix — no behavior change.
+
 ## [2.30.1] - 2026-08-26
 
 ### Fixed

@@ -17,6 +17,18 @@ export interface DetectionSettings {
     disabled_endpoints: string[];
     /** Default context merged into detection requests */
     default_context?: DetectionDefaultContext;
+    /**
+     * Account-level default for `flagProfanity` on `detectBullying`/
+     * `detectUnsafe` when a request omits it. An explicit `flagProfanity` on
+     * the call itself always overrides this.
+     */
+    default_flag_profanity?: boolean;
+    /**
+     * Account-level default for `flagRiskTerms` on `detectBullying`/
+     * `detectUnsafe` when a request omits it. An explicit `flagRiskTerms` on
+     * the call itself always overrides this.
+     */
+    default_flag_risk_terms?: boolean;
     /** All endpoints the API supports */
     available_endpoints: string[];
     /** ISO 8601 timestamp of the last settings update */
@@ -32,6 +44,10 @@ export interface UpdateDetectionSettingsInput {
     enabled_endpoints?: string[];
     disabled_endpoints?: string[];
     default_context?: DetectionDefaultContext;
+    /** Account-level default for `flagProfanity` on `detectBullying`/`detectUnsafe`. */
+    default_flag_profanity?: boolean;
+    /** Account-level default for `flagRiskTerms` on `detectBullying`/`detectUnsafe`. */
+    default_flag_risk_terms?: boolean;
 }
 
 /** Result of updating detection settings. */

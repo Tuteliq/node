@@ -218,6 +218,18 @@ export interface DetectBullyingInput extends TrackingFields {
      * account default. **Requires the API deployed on or after 2026-08-25.**
      */
     flagProfanity?: boolean;
+    /**
+     * Additive, deterministic word-list flag for bare drug and violence terms
+     * (e.g. "cocaine", "kill"). When true, adds a `risk_terms` field to the
+     * response — never affects `is_bullying`, `severity`, `risk_score`, or
+     * `recommended_action`. Free — no extra credits. Purely lexical: WILL
+     * fire on benign uses of an included term ("kill the lights"), since it
+     * cannot read context the way the detector itself does. Explicit
+     * `true`/`false` here always overrides your account's
+     * `default_flag_risk_terms` setting for this call; omit to use the
+     * account default. **Requires the API deployed on or after 2026-08-25.**
+     */
+    flagRiskTerms?: boolean;
 }
 
 export interface BullyingResult {
@@ -317,6 +329,14 @@ export interface BullyingResult {
      * `recommended_action`.
      */
     profanity?: { detected: boolean; matches: string[] } | null;
+    /**
+     * Present only when `flagRiskTerms` on this request (or the account-level
+     * `default_flag_risk_terms` setting) is true. Deterministic drug/violence
+     * word-list result — additive, never affects
+     * `is_bullying`/`severity`/`risk_score`/`recommended_action`. Purely
+     * lexical: can fire on benign uses of an included term.
+     */
+    risk_terms?: { detected: boolean; matches: Array<{ term: string; category: 'drug' | 'violence' }> } | null;
     /**
      * Crisis support resources, present only when the result meets the
      * request's `supportThreshold`. Localised to `context.country`.
@@ -497,6 +517,18 @@ export interface DetectUnsafeInput extends TrackingFields {
      * account default. **Requires the API deployed on or after 2026-08-25.**
      */
     flagProfanity?: boolean;
+    /**
+     * Additive, deterministic word-list flag for bare drug and violence terms
+     * (e.g. "cocaine", "kill"). When true, adds a `risk_terms` field to the
+     * response — never affects `unsafe`, `severity`, `risk_score`, or
+     * `recommended_action`. Free — no extra credits. Purely lexical: WILL
+     * fire on benign uses of an included term ("kill the lights"), since it
+     * cannot read context the way the detector itself does. Explicit
+     * `true`/`false` here always overrides your account's
+     * `default_flag_risk_terms` setting for this call; omit to use the
+     * account default. **Requires the API deployed on or after 2026-08-25.**
+     */
+    flagRiskTerms?: boolean;
 }
 
 export interface UnsafeResult {
@@ -557,6 +589,14 @@ export interface UnsafeResult {
      */
     profanity?: { detected: boolean; matches: string[] } | null;
     /**
+     * Present only when `flagRiskTerms` on this request (or the account-level
+     * `default_flag_risk_terms` setting) is true. Deterministic drug/violence
+     * word-list result — additive, never affects
+     * `unsafe`/`severity`/`risk_score`/`recommended_action`. Purely lexical:
+     * can fire on benign uses of an included term.
+     */
+    risk_terms?: { detected: boolean; matches: Array<{ term: string; category: 'drug' | 'violence' }> } | null;
+    /**
      * Crisis support resources, present only when the result meets the
      * request's `supportThreshold`. Localised to `context.country`.
      */
@@ -596,6 +636,16 @@ export interface AnalyzeInput extends TrackingFields {
      * setting. **Requires the API deployed on or after 2026-08-25.**
      */
     flagProfanity?: boolean;
+    /**
+     * Forwarded to each detector this call fans out to, same semantics as
+     * `flagRiskTerms` on `detectBullying`/`detectUnsafe` directly: an
+     * additive, deterministic word-list flag for bare drug/violence terms
+     * that adds a `risk_terms` field to `result.bullying`/`result.unsafe`,
+     * never affecting risk scoring or `recommended_action`. Omit to use the
+     * account's `default_flag_risk_terms` setting. **Requires the API
+     * deployed on or after 2026-08-25.**
+     */
+    flagRiskTerms?: boolean;
 }
 
 export interface AnalyzeResult {

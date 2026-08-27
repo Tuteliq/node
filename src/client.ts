@@ -719,6 +719,7 @@ export class Tuteliq {
         if (input.supportThreshold) options.support_threshold = input.supportThreshold;
         if (input.verdictOnly) options.verdict_only = true;
         if (input.flagProfanity !== undefined) options.flag_profanity = input.flagProfanity;
+        if (input.flagRiskTerms !== undefined) options.flag_risk_terms = input.flagRiskTerms;
 
         return this.requestWithRetry<BullyingResult>(
             'POST',
@@ -821,6 +822,7 @@ export class Tuteliq {
         if (input.supportThreshold) options.support_threshold = input.supportThreshold;
         if (input.verdictOnly) options.verdict_only = true;
         if (input.flagProfanity !== undefined) options.flag_profanity = input.flagProfanity;
+        if (input.flagRiskTerms !== undefined) options.flag_risk_terms = input.flagRiskTerms;
 
         return this.requestWithRetry<UnsafeResult>(
             'POST',
@@ -883,6 +885,7 @@ export class Tuteliq {
                 // Same gap verdictOnly had before it: accepted on AnalyzeInput
                 // but never reached the detectors it fans out to.
                 flagProfanity: input.flagProfanity,
+                flagRiskTerms: input.flagRiskTerms,
             }));
         }
 
@@ -897,6 +900,7 @@ export class Tuteliq {
                 metadata: input.metadata,
                 incident_moderation_enabled: input.incident_moderation_enabled,
                 flagProfanity: input.flagProfanity,
+                flagRiskTerms: input.flagRiskTerms,
             }));
         }
 
