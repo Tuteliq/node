@@ -394,7 +394,16 @@ export class Tuteliq {
         if (typeof context === 'string') {
             return { platform: Tuteliq.resolvePlatform(context) };
         }
-        return { ...context, platform: Tuteliq.resolvePlatform(context.platform) };
+        // priorMessages (idiomatic camelCase, matching every other field on
+        // ContextInput) is translated to the wire's prior_messages here --
+        // the API only recognizes the snake_case key. Destructured out so
+        // the spread below never forwards the untranslated camelCase name.
+        const { priorMessages, ...rest } = context;
+        return {
+            ...rest,
+            platform: Tuteliq.resolvePlatform(context.platform),
+            ...(priorMessages && { prior_messages: priorMessages }),
+        };
     }
 
     /**
@@ -834,6 +843,8 @@ export class Tuteliq {
                 ...(input.customer_id && { customer_id: input.customer_id }),
                 ...(input.metadata && { metadata: input.metadata }),
                 ...(input.incident_moderation_enabled !== undefined && { incident_moderation_enabled: input.incident_moderation_enabled }),
+                ...(input.continuationToken && { continuation_token: input.continuationToken }),
+                ...(input.resetConversation && { reset_conversation: true }),
                 ...(Object.keys(options).length > 0 && { options }),
             }
         );
