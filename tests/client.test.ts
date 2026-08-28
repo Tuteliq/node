@@ -186,6 +186,71 @@ describe('Tuteliq', () => {
             expect(result.unsafe).toBe(true);
             expect(result.categories).toContain('self_harm');
         });
+
+        it('should translate context.priorMessages to prior_messages on the wire', async () => {
+            const mockResponse = { unsafe: false, categories: [] };
+
+            vi.spyOn(global, 'fetch').mockResolvedValueOnce(mockFetchResponse(mockResponse));
+
+            await tuteliq.detectUnsafe({
+                content: "anyway it's whatever, not a big deal",
+                context: {
+                    ageGroup: '14-17',
+                    priorMessages: [
+                        { role: 'user', text: 'nothing I do matters anymore' },
+                        { role: 'user', text: 'been avoiding everyone' },
+                    ],
+                },
+            });
+
+            const call = vi.mocked(fetch).mock.calls[0];
+            const body = JSON.parse(call[1]?.body as string);
+            expect(body.context.prior_messages).toEqual([
+                { role: 'user', text: 'nothing I do matters anymore' },
+                { role: 'user', text: 'been avoiding everyone' },
+            ]);
+            // The idiomatic camelCase name must never leak onto the wire —
+            // the API only recognizes the snake_case key.
+            expect(body.context.priorMessages).toBeUndefined();
+            expect(body.context.ageGroup).toBe('14-17');
+        });
+
+        it('omits prior_messages entirely when priorMessages is not provided', async () => {
+            const mockResponse = { unsafe: false, categories: [] };
+
+            vi.spyOn(global, 'fetch').mockResolvedValueOnce(mockFetchResponse(mockResponse));
+
+            await tuteliq.detectUnsafe({ content: 'a plain message' });
+
+            const call = vi.mocked(fetch).mock.calls[0];
+            const body = JSON.parse(call[1]?.body as string);
+            expect(body.context).not.toHaveProperty('prior_messages');
+        });
+
+        it('passes continuationToken and resetConversation through to the request body', async () => {
+            const mockResponse = {
+                unsafe: false,
+                categories: [],
+                continuation_token: 'signed-token-abc',
+                trajectory_risk: 0.4,
+                trajectory: 'stable',
+            };
+
+            vi.spyOn(global, 'fetch').mockResolvedValueOnce(mockFetchResponse(mockResponse));
+
+            const result = await tuteliq.detectUnsafe({
+                content: 'a follow-up message',
+                continuationToken: 'prior-token-xyz',
+                resetConversation: true,
+            });
+
+            const call = vi.mocked(fetch).mock.calls[0];
+            const body = JSON.parse(call[1]?.body as string);
+            expect(body.continuation_token).toBe('prior-token-xyz');
+            expect(body.reset_conversation).toBe(true);
+            expect(result.continuation_token).toBe('signed-token-abc');
+            expect(result.trajectory_risk).toBe(0.4);
+        });
     });
 
     describe('analyze', () => {

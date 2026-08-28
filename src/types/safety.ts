@@ -101,6 +101,18 @@ export function strongestAction(
 }
 
 /**
+ * One prior turn of a conversation, for `ContextInput.priorMessages`.
+ */
+export interface PriorMessage {
+    /** Sender's role in this conversation (e.g. "user", "contact", "adult", "child") */
+    role: string;
+    /** Message text */
+    text: string;
+    /** ISO 8601 timestamp of the message (optional) */
+    timestamp?: string;
+}
+
+/**
  * Context type - can be a string shorthand or detailed object
  */
 export type ContextInput = string | {
@@ -119,6 +131,18 @@ export type ContextInput = string | {
     platform?: string;
     /** ISO 3166-1 alpha-2 country code (e.g., "GB", "US") for geo-localised helpline data */
     country?: string;
+    /**
+     * Prior turns of this conversation, oldest first, submitted for THIS
+     * request only — never stored server-side, used once to build the
+     * analysis prompt for this call and then discarded. Lets a single call
+     * see the trajectory a gradually-building risk needs, without calling
+     * once per message. Supported by `detectUnsafe` and the fraud/coercive
+     * control/distress-signals endpoint family; ignored (harmlessly) by
+     * endpoints with no multi-turn content field of their own, e.g.
+     * `detectBullying` (use its `continuationToken` instead) and
+     * `detectGrooming` (which takes a required `messages` array directly).
+     */
+    priorMessages?: PriorMessage[];
 };
 
 // =============================================================================
@@ -501,6 +525,20 @@ export interface DetectUnsafeInput extends TrackingFields {
     /** Minimum severity to show crisis support resources (default: 'high'). Critical always shows. */
     supportThreshold?: 'low' | 'medium' | 'high' | 'critical';
     /**
+     * Opaque signed token returned by a prior /unsafe call. Carries derived
+     * conversation-trajectory state (category counts, severity history) into
+     * the next call without storing any user content server-side. Pass back
+     * verbatim to maintain multi-turn awareness across calls -- the
+     * alternative to submitting the whole conversation via
+     * `context.priorMessages` on every call.
+     */
+    continuationToken?: string;
+    /**
+     * If true, discard any provided continuationToken and start a fresh
+     * conversation. Useful when starting a new chat in the same session.
+     */
+    resetConversation?: boolean;
+    /**
      * Fast mode. When true, the response omits any per-message
      * `message_analysis` breakdown and returns only the verdict. Lower latency
      * and a smaller payload for real-time screening; the verdict is unchanged.
@@ -572,6 +610,29 @@ export interface UnsafeResult {
     customer_id?: string;
     /** Echo of provided metadata (if any) */
     metadata?: Record<string, unknown>;
+    /**
+     * Opaque signed token carrying derived analysis state to the next call.
+     * Pass back as `continuationToken` on the next /unsafe request to
+     * preserve multi-turn awareness without server-side content storage.
+     */
+    continuation_token?: string;
+    /** ISO 8601 expiry timestamp of the continuation_token. */
+    continuation_expires_at?: string;
+    /**
+     * How prior state was sourced: "token" (decoded from a continuationToken),
+     * "fresh" (no prior state), "reset" (resetConversation forced a restart).
+     */
+    state_source?: 'token' | 'fresh' | 'reset';
+    /**
+     * Conversation-level risk (0-1), derived from the signed continuation
+     * token. Distinct from `risk_score`, which scores only this request's
+     * content. Absent on the first turn of a fresh conversation.
+     */
+    trajectory_risk?: number;
+    /** Direction of travel across the conversation so far. Absent alongside `trajectory_risk`. */
+    trajectory?: ConversationTrajectory;
+    /** Per-turn severity, oldest first — the evidence behind `trajectory_risk`. */
+    severity_series?: number[];
     /**
      * True when a coded-term match pushed severity toward critical but this
      * endpoint's corroboration-cap logic held `recommended_action` below
