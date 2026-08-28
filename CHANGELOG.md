@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.32.0] - 2026-08-28
+
+### Added
+
+- **`context.priorMessages` and `continuationToken`/`resetConversation` on `detectUnsafe`.** `detectUnsafe` never exposed multi-turn support at all, unlike `detectBullying`/`detectGrooming` — no context field for submitting prior turns, and no way to carry trajectory across separate calls, despite the API's `/unsafe` route supporting `continuation_token` all along, and now also supporting `context.prior_messages` (Tuteliq/api#173). `priorMessages` is a new `ContextInput` field (idiomatic camelCase; `normalizeContext` translates it to the wire's `prior_messages` — every other endpoint using `ContextInput` picks it up automatically too, ignored server-side where unsupported). `continuationToken`/`resetConversation` on `DetectUnsafeInput`, and `continuation_token`/`continuation_expires_at`/`state_source`/`trajectory_risk`/`trajectory`/`severity_series` on `UnsafeResult`, mirror `BullyingResult`'s existing shape exactly — `/unsafe`'s continuation machinery has always returned these, the SDK just never had types for them.
+
 ## [2.31.0] - 2026-08-27
 
 ### Added
