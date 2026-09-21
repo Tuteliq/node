@@ -1466,8 +1466,8 @@ Get current rate limit quota status.
 
 ```typescript
 const quota = await tuteliq.getQuota()
-console.log('Rate limit:', quota.rate_limit, '/min')
-console.log('Remaining:', quota.remaining)
+console.log('Rate limit:', quota.limits.requestsPerMinute, '/min')
+console.log('Remaining this minute:', quota.remaining.requestsThisMinute)
 ```
 
 #### `getUsageHistory(days?)`

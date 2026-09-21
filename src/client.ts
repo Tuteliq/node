@@ -1531,8 +1531,8 @@ export class Tuteliq {
      * @example
      * ```typescript
      * const quota = await tuteliq.getQuota()
-     * console.log('Rate limit:', quota.rate_limit)
-     * console.log('Remaining this minute:', quota.remaining)
+     * console.log('Rate limit:', quota.limits.requestsPerMinute)
+     * console.log('Remaining this minute:', quota.remaining.requestsThisMinute)
      * ```
      */
     async getQuota(): Promise<UsageQuota> {
