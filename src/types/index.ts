@@ -113,15 +113,37 @@ export interface UsageSummary {
     days_remaining: number;
 }
 
+/**
+ * GET /api/v1/usage/quota, as the API actually returns it.
+ *
+ * Earlier versions of this type declared flat `rate_limit` / `remaining` /
+ * `reset_in_seconds` fields the API never sent, so every consumer reading
+ * them got `undefined` (the MCP server's quota tool printed "undefined/min").
+ * The nested shape below is what is on the wire; `resetsInSeconds` was added
+ * to the API on 2026-09-21 and is absent on older deployments.
+ */
 export interface UsageQuota {
-    /** Rate limit per minute */
-    rate_limit: number;
-    /** Remaining requests this minute */
-    remaining: number;
-    /** Seconds until rate limit resets */
-    reset_in_seconds: number;
+    apiKeyId?: string;
     /** Current tier */
     tier: string;
+    limits: {
+        requestsPerMinute: number;
+        /** -1 = unlimited */
+        requestsPerMonth: number;
+        /** -1 = unlimited */
+        requestsPerDay: number;
+    };
+    current: {
+        requestsThisMinute: number;
+        requestsToday: number;
+    };
+    remaining: {
+        requestsThisMinute: number;
+        /** -1 = unlimited */
+        requestsToday: number;
+    };
+    /** Seconds until the per-minute window resets. Absent on API versions before 2026-09-21. */
+    resetsInSeconds?: number;
 }
 
 /** A single day's usage data. */
