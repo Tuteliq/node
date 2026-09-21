@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.33.0] - 2026-09-21
+
+### Fixed
+
+- **`UsageQuota` now matches what `GET /usage/quota` returns.** The type declared flat `rate_limit` / `remaining` / `reset_in_seconds` fields the API never sent, so every consumer reading them got `undefined` (the MCP server's quota tool printed "undefined/min" and "[object Object]", reported by a customer on 2026-09-21). The type is now the wire shape: `limits.{requestsPerMinute,requestsPerDay,requestsPerMonth}` (`-1` = unlimited), `current.{requestsThisMinute,requestsToday}`, `remaining.{requestsThisMinute,requestsToday}`, and optional `apiKeyId`. Types only; `getUsageQuota()` forwarded the raw response all along, so runtime values are unchanged. Code that read the old flat fields must move to the nested ones (it was reading `undefined` before).
+
+### Added
+
+- **`UsageQuota.resetsInSeconds`**, seconds until the per-minute window resets. Optional: absent on API deployments before 2026-09-21.
+
 ## [2.32.0] - 2026-08-28
 
 ### Added
