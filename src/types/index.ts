@@ -18,6 +18,7 @@ export * from './incidents.js';
 export * from './automation.js';
 export * from './settings.js';
 export * from './intelligence.js';
+export * from './safety-classification.js';
 
 // =============================================================================
 // Common Types

@@ -97,6 +97,10 @@ export interface VoiceAnalysisResult {
      * only; never contains the transcript, image description or extracted text.
      */
     rationale: string;
+    /** Detected or declared language code */
+    language?: string;
+    /** Language support maturity */
+    language_status?: 'stable' | 'beta';
     /** Number of credits consumed by this request */
     credits_used?: number;
     /** Echo of provided external_id */
@@ -106,6 +110,14 @@ export interface VoiceAnalysisResult {
     /** Echo of provided metadata */
     metadata?: Record<string, unknown>;
 }
+
+/**
+ * Drug/violence term list result over OCR text. Present only when
+ * `flagRiskTerms` (or the account-level `default_flag_risk_terms` setting)
+ * is true and the media contained OCR text. Additive: never affects the
+ * verdict. Purely lexical, so it can fire on benign uses of a term.
+ */
+export type MediaRiskTerms = UnsafeResult['risk_terms'];
 
 // =============================================================================
 // Video Analysis
@@ -140,6 +152,10 @@ export interface AnalyzeVideoInput extends TrackingFields {
     file: Buffer | Blob | File;
     /** Original filename (e.g., "clip.mp4") */
     filename: string;
+    /** Analysis to run on the sampled frames (default `'all'`) */
+    analysisType?: 'unsafe' | 'all';
+    /** Frames to sample across the video (default 10, at most 20) */
+    maxFrames?: number;
     /** Customer-provided file reference ID (echoed in response) */
     fileId?: string;
     /** Age group for calibrated analysis */
@@ -166,6 +182,13 @@ export interface AnalyzeVideoInput extends TrackingFields {
      * or after 2026-08-26.**
      */
     flagProfanity?: boolean;
+    /**
+     * Additive, deterministic drug/violence term list over the OCR text
+     * across frames. When true, adds a `risk_terms` field to the response;
+     * never affects the verdict. Explicit `true`/`false` overrides your
+     * account's `default_flag_risk_terms` setting; omit to use the default.
+     */
+    flagRiskTerms?: boolean;
 }
 
 export interface VideoAnalysisResult {
@@ -229,6 +252,8 @@ export interface VideoAnalysisResult {
      * `overall_severity`, or `recommended_action`.
      */
     profanity?: { detected: boolean; matches: string[] } | null;
+    /** See `MediaRiskTerms`. Aggregated over OCR text across frames. */
+    risk_terms?: MediaRiskTerms;
 }
 
 // =============================================================================
@@ -283,6 +308,13 @@ export interface AnalyzeImageInput extends TrackingFields {
      * account default. **Requires the API deployed on or after 2026-08-25.**
      */
     flagProfanity?: boolean;
+    /**
+     * Additive, deterministic drug/violence term list over the image's OCR
+     * text. When true, adds a `risk_terms` field to the response; never
+     * affects the verdict. Explicit `true`/`false` overrides your account's
+     * `default_flag_risk_terms` setting; omit to use the default.
+     */
+    flagRiskTerms?: boolean;
 }
 
 export interface ImageAnalysisResult {
@@ -338,6 +370,8 @@ export interface ImageAnalysisResult {
      * `recommended_action`, or any `text_analysis` result.
      */
     profanity?: { detected: boolean; matches: string[] } | null;
+    /** See `MediaRiskTerms`. */
+    risk_terms?: MediaRiskTerms;
 }
 
 // =============================================================================
@@ -356,9 +390,12 @@ export type DocumentEndpointName =
     | 'mule-recruitment';
 
 export interface AnalyzeDocumentInput extends TrackingFields {
-    /** PDF file — Buffer, Blob, or File */
+    /**
+     * PDF, or a PNG, JPEG or WebP image read as a one-page document (Buffer,
+     * Blob, or File). The type is decided from the file's bytes.
+     */
     file: Buffer | Blob | File;
-    /** Original filename (e.g., "report.pdf") */
+    /** Original filename (e.g., "report.pdf", "chat.png") */
     filename: string;
     /** Detection endpoints to run on each page. Defaults to ['unsafe', 'coercive-control', 'radicalisation']. */
     endpoints?: DocumentEndpointName[];
@@ -378,6 +415,12 @@ export interface AnalyzeDocumentInput extends TrackingFields {
     platform?: string;
     /** Minimum severity to include crisis helplines. Default: "high". */
     supportThreshold?: 'low' | 'medium' | 'high' | 'critical';
+    /**
+     * Images only. For a messaging screenshot, splits it into messages with
+     * the side each came from, so the last received message is judged with
+     * the rest as history. Costs one extra vision call.
+     */
+    splitBySender?: boolean;
 }
 
 export interface DocumentExtractionSummary {
@@ -410,17 +453,14 @@ export interface DocumentPageEndpointResult {
     evidence: Array<{ text: string; tactic: string; weight: number }>;
     /**
      * Recommended action for this endpoint on this page, as a stable enum.
-     * Safe to switch on; human guidance is in `action_detail`.
+     * Safe to switch on.
      */
     recommended_action: RecommendedAction;
-    /**
-     * Optional human-readable expansion of `recommended_action`, for a
-     * moderator UI. Free text: do not branch on it.
-     */
+    /** @deprecated Not returned per page; never present. */
     action_detail?: string;
     /** Human-readable rationale */
     rationale: string;
-    /** Detected language */
+    /** @deprecated Not returned per page; use the top-level `language`. */
     detected_language?: string;
 }
 
@@ -453,9 +493,9 @@ export interface DocumentFlaggedPage {
 }
 
 export interface DocumentAnalysisResult {
-    /** Customer-provided file reference (if provided) */
-    file_id?: string;
-    /** SHA-256 hash of the uploaded PDF for chain-of-custody verification */
+    /** Your file reference, or the uploaded filename when none was given */
+    file_id: string;
+    /** SHA-256 hash of the uploaded file for chain-of-custody verification */
     document_hash: string;
     /** Total pages in the document */
     total_pages: number;
@@ -483,6 +523,78 @@ export interface DocumentAnalysisResult {
     language_status?: string;
     /** Crisis support resources (if triggered) */
     support?: Record<string, unknown>;
+    /** Echo of provided external_id */
+    external_id?: string;
+    /** Echo of provided customer_id */
+    customer_id?: string;
+    /** Echo of provided metadata */
+    metadata?: Record<string, unknown>;
+}
+
+// =============================================================================
+// Image Match (composite image checks)
+// =============================================================================
+
+/** Checks `verifyImageMatch` can run. */
+export type ImageMatchCheck = 'face_match' | 'age' | 'forensic' | 'synthetic';
+
+export interface VerifyImageMatchInput extends TrackingFields {
+    /**
+     * The image to check (max 15 MB). Bytes are base64-encoded by the SDK; a
+     * string is sent as-is and must already be base64 (a data URL is accepted).
+     */
+    image: Buffer | Uint8Array | string;
+    /** Reference image for `face_match`; without it that check is skipped */
+    referenceImage?: Buffer | Uint8Array | string;
+    /** Checks to run (default: all) */
+    checks?: ImageMatchCheck[];
+}
+
+export interface VerifyImageMatchResult {
+    /** Response schema version */
+    schema_version: string;
+    /** Checks that actually ran (`face_match` is left out without a reference image) */
+    checks_run: ImageMatchCheck[];
+    /** Face comparison against the reference image */
+    face_match?: {
+        /** Whether the two faces match */
+        matched: boolean;
+        /** Face similarity (0.0-1.0), absent when no face was found */
+        similarity?: number;
+        /** Why matching failed (e.g. `no_face_detected`) */
+        reason?: string;
+    };
+    /** Age estimate for the image, or null when no face was detected */
+    age?: {
+        /** Estimated age in years */
+        estimated_age: number;
+        /** Face-detection confidence (0.0-1.0) */
+        confidence: number;
+    } | null;
+    /** Explicit-content and skin-exposure checks */
+    forensic?: {
+        /** Whether the image was classified as explicit */
+        nsfw: boolean;
+        /** Explicit-content score (0.0-1.0) */
+        nsfw_confidence?: number;
+        /** Coarse skin-exposure level */
+        skin_exposure_level?: 'low' | 'moderate' | 'high';
+    };
+    /** Synthetic-image checks; each field is absent when its check could not run */
+    synthetic?: {
+        /** Classifier verdict */
+        is_synthetic?: boolean;
+        /** Probability the image is synthetic (0.0-1.0) */
+        synthetic_probability?: number;
+        /** A C2PA / Content Credentials manifest is embedded */
+        has_c2pa?: boolean;
+        /** The C2PA manifest declares AI generation */
+        is_ai_generated?: boolean;
+    };
+    /** Credits charged for this call */
+    credits_used: number;
+    /** Total processing time in milliseconds */
+    processing_ms: number;
     /** Echo of provided external_id */
     external_id?: string;
     /** Echo of provided customer_id */

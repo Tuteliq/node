@@ -117,6 +117,17 @@ export type {
     DocumentPageResult,
     DocumentPageEndpointResult,
     DocumentFlaggedPage,
+    MediaRiskTerms,
+    ImageMatchCheck,
+    VerifyImageMatchInput,
+    VerifyImageMatchResult,
+
+    // Safety classification types
+    SafetyClassification,
+    SafetyClassificationBand,
+    SafetyClassificationComponent,
+    SafetyClassificationEvidence,
+    SafetyClassificationResult,
 
     // Webhook types
     Webhook,
@@ -186,6 +197,9 @@ export type {
     VoiceTranscriptionEvent,
     VoiceTranscriptionSegment,
     VoiceAlertEvent,
+    VoiceFrameAnalysisEvent,
+    VoiceStreamAnalysisType,
+    VoiceStreamServerConfig,
     VoiceSessionSummaryEvent,
     VoiceConfigUpdatedEvent,
     VoiceErrorEvent,
@@ -220,6 +234,10 @@ export type {
     DetectSyntheticAudioInput,
     SyntheticAudioResult,
     AudioStats,
+    AudioForensics,
+    SyntheticTranscription,
+    ScreenshotDetection,
+    DeepImageAnalysis,
     DetectSyntheticVideoInput,
     SyntheticVideoResult,
     TemporalConsistency,
