@@ -1,3 +1,5 @@
+import { ConversationType } from '../constants.js';
+
 // =============================================================================
 // Detection Settings
 // =============================================================================
@@ -29,6 +31,12 @@ export interface DetectionSettings {
      * the call itself always overrides this.
      */
     default_flag_risk_terms?: boolean;
+    /**
+     * Account-level default for `context.conversationType`. A request that
+     * sets `conversationType` always overrides it; where it applies, results
+     * report `conversation_type_source: 'account_default'`.
+     */
+    default_conversation_type?: ConversationType;
     /** All endpoints the API supports */
     available_endpoints: string[];
     /** ISO 8601 timestamp of the last settings update */
@@ -48,6 +56,11 @@ export interface UpdateDetectionSettingsInput {
     default_flag_profanity?: boolean;
     /** Account-level default for `flagRiskTerms` on `detectBullying`/`detectUnsafe`. */
     default_flag_risk_terms?: boolean;
+    /**
+     * Account-level default for `context.conversationType`. Set it from your
+     * own platform configuration, never from end-user input.
+     */
+    default_conversation_type?: ConversationType;
 }
 
 /** Result of updating detection settings. */

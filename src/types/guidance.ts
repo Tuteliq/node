@@ -3,7 +3,7 @@ import { TrackingFields } from './index.js';
 /**
  * Target audience for action plans
  */
-export type Audience = 'child' | 'parent' | 'educator' | 'platform';
+export type Audience = 'child' | 'parent' | 'platform';
 
 // =============================================================================
 // Action Plan
@@ -28,6 +28,8 @@ export interface ActionPlanResult {
     /** Tone used in the guidance */
     tone: string;
     /** Approximate reading level */
+    approx_reading_level?: string;
+    /** @deprecated Use `approx_reading_level`; the SDK copies it here for compatibility. */
     reading_level?: string;
     /** Number of credits consumed by this request */
     credits_used?: number;

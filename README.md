@@ -442,6 +442,44 @@ const result = await tuteliq.detectRadicalisation({
 })
 ```
 
+#### `detectNickname(input)`
+
+Reads a display name for concerns before it is shown to others. The result is a signal about the name, not a verdict on the person, and carries `recommendation` (`allow`, `allow_and_watch`, `ask_to_rename`, `hold_for_review`) rather than `recommended_action`.
+
+```typescript
+const result = await tuteliq.detectNickname({
+  name: 'xX_player_Xx',
+  strictness: 'balanced',
+  context: { ageGroup: '11-13', platformReserved: ['Support', 'Admin'] },
+})
+
+if (!result.reading_complete) {
+  // Nothing was analysed and nothing charged: retry.
+} else if (result.recommendation === 'hold_for_review') {
+  console.log(result.recommendation_detail)
+}
+```
+
+#### Declaring the setting and participants
+
+Every text detector accepts the setting the text was written in and the people in the conversation, as your platform knows them. The SDK translates these to the API's field names.
+
+```typescript
+const result = await tuteliq.detectBullying({
+  content: 'message',
+  context: {
+    conversationType: 'gaming_chat',
+    sender: { role: 'teen', ageGroup: '14-17' },
+    recipients: [{ role: 'teen', relationshipToSender: 'peer' }],
+    minorDisclosureCheck: true,
+  },
+  attestation: true,
+  messageId: 'msg_123',
+})
+
+console.log(result.conversation_type_in_effect)  // 'gaming_chat'
+```
+
 ---
 
 ### Multi-Endpoint Analysis
@@ -469,7 +507,8 @@ console.log(result.summary.detected_count)       // 2
 console.log(result.summary.highest_risk)         // { endpoint: 'romance-scam', risk_score: 0.85 }
 console.log(result.summary.overall_risk_level)   // 'high'
 console.log(result.cross_endpoint_modifier)      // 1.3 (vulnerability modifier)
-console.log(result.credits_used)                 // 3
+console.log(result.summary.total_credits_used)   // 3
+console.log(result.summary.analysis_status)      // 'complete' | 'partial'
 
 // Individual results
 for (const r of result.results) {
@@ -492,6 +531,11 @@ for (const r of result.results) {
 | `coercive-control` | `detectCoerciveControl` |
 | `vulnerability-exploitation` | `detectVulnerabilityExploitation` |
 | `radicalisation` | `detectRadicalisation` |
+| `distress-signals` | `detectDistressSignals` |
+| `tfgbv` | `detectTFGBV` |
+| `synthetic-content` | `detectSyntheticText` |
+
+When `summary.analysis_status` is `partial`, at least one detector did not answer: `summary.failed_endpoints` names them and `summary.recommended_action` asks for review.
 
 ---
 
@@ -835,14 +879,14 @@ Generates age-appropriate action guidance.
 const plan = await tuteliq.getActionPlan({
   situation: 'Someone is spreading rumors about me at school',
   childAge: 12,
-  audience: 'child',  // 'child' | 'parent' | 'educator' | 'platform'
+  audience: 'child',  // 'child' | 'parent' | 'platform'
   severity: 'medium'
 })
 
 console.log(plan.audience)       // 'child'
 console.log(plan.steps)          // ['Talk to a trusted adult', ...]
 console.log(plan.tone)           // 'supportive'
-console.log(plan.reading_level)  // 'grade_5'
+console.log(plan.approx_reading_level)  // 'grade_5'
 ```
 
 #### `generateReport(input)`
@@ -856,10 +900,8 @@ const report = await tuteliq.generateReport({
     { sender: 'child', content: 'Please stop' }
   ],
   childAge: 14,
-  incident: {
-    type: 'harassment',
-    occurredAt: new Date()
-  }
+  conversationId: 'conv_123',
+  timestampRange: ['2026-11-01T10:00:00Z', '2026-11-01T10:45:00Z']
 })
 
 console.log(report.summary)                  // "Incident summary..."

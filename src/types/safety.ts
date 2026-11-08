@@ -4,6 +4,14 @@ import {
 } from '../constants.js';
 import { TrackingFields } from './index.js';
 import { MessageAnalysis } from './detection.js';
+import {
+    ConversationType,
+    DeclaredRecipient,
+    DeclaredSender,
+    SpeakerRole,
+    SpeakerStance,
+    TextDetectionFields,
+} from './detection-fields.js';
 
 // Re-export enums for convenience
 export { Severity, GroomingRisk };
@@ -143,7 +151,38 @@ export type ContextInput = string | {
      * `detectGrooming` (which takes a required `messages` array directly).
      */
     priorMessages?: PriorMessage[];
+    /** The sender, as your platform knows them. Declared, never inferred from the text. */
+    sender?: DeclaredSender;
+    /** The recipients (up to 20) and how each is related to the sender. */
+    recipients?: DeclaredRecipient[];
+    /**
+     * The setting the text was written in. When omitted, the account's
+     * `default_conversation_type` applies if one is set. The setting in effect
+     * is echoed as `conversation_type_in_effect`.
+     */
+    conversationType?: ConversationType;
+    /**
+     * Opt in to a reading of whether the speaker says they are a minor in
+     * words other than an age. Returned as `minor_disclosure`.
+     */
+    minorDisclosureCheck?: boolean;
+    /**
+     * `detectDistressSignals` only: whether the author is the person in
+     * distress (`subject`) or someone responding to them (`responder`).
+     * Echoed as `distress_subject`.
+     */
+    authorRole?: 'subject' | 'responder';
 };
+
+/**
+ * Request fields shared by the single-endpoint text detectors.
+ */
+export interface TextDetectionRequestFields {
+    /** Ask for a signed, non-identifying detection attestation (`attestation` on the result). */
+    attestation?: boolean;
+    /** Your id for this message (max 128 characters). */
+    messageId?: string;
+}
 
 // =============================================================================
 // Crisis Support
@@ -171,9 +210,12 @@ export interface SupportHelpline {
 export interface SupportResponseGuide {
     category?: string;
     immediateActions: string[];
+    /** @deprecated Not returned by the API. */
     childSpecificActions?: string[];
     resources: Array<{ name: string; description?: string; url?: string }>;
+    /** @deprecated Not returned by the API. */
     confidential?: boolean;
+    /** @deprecated Not returned by the API. */
     language?: string;
 }
 
@@ -193,9 +235,9 @@ export interface SupportData {
     helplines: SupportHelpline[];
     /** Highest-priority guide */
     response_guide?: SupportResponseGuide;
-    /** All matching guides, highest priority first */
+    /** @deprecated Not returned by the API; use `response_guide`. */
     response_guides?: SupportResponseGuide[];
-    /** BCP-47 language of the guide content */
+    /** @deprecated Not returned by the API. */
     language?: string;
 }
 
@@ -203,7 +245,7 @@ export interface SupportData {
 // Bullying Detection
 // =============================================================================
 
-export interface DetectBullyingInput extends TrackingFields {
+export interface DetectBullyingInput extends TrackingFields, TextDetectionRequestFields {
     /** The content to analyze */
     content: string;
     /** Context for better analysis - string shorthand or detailed object */
@@ -256,11 +298,45 @@ export interface DetectBullyingInput extends TrackingFields {
     flagRiskTerms?: boolean;
 }
 
-export interface BullyingResult {
-    /** Whether bullying was detected */
+/** Bullying types the API returns in `bullying_type`. */
+export type BullyingType =
+    | 'exclusion'
+    | 'verbal_abuse'
+    | 'humiliation'
+    | 'threat'
+    | 'intimidation'
+    | 'sexual_harassment'
+    | 'body_shaming'
+    | 'identity_based'
+    | 'impersonation'
+    | 'outing'
+    | 'pile_on'
+    | 'cyberstalking'
+    | 'exclusion_threat'
+    | 'coded_harassment'
+    | 'cyberbullying'
+    | 'relational';
+
+export interface BullyingResult extends TextDetectionFields {
+    /**
+     * Whether bullying was detected. False when the message reports bullying
+     * rather than doing it (see `bullying_reported`).
+     */
     is_bullying: boolean;
     /** Types of bullying detected */
-    bullying_type: string[];
+    bullying_type: BullyingType[];
+    /**
+     * True when the message reports bullying (by its target or a bystander)
+     * rather than doing it. `recommended_action` still says whether a person
+     * should look at it.
+     */
+    bullying_reported?: boolean;
+    /** Who reported the bullying. Present with `bullying_reported`. */
+    bullying_reported_by?: 'target' | 'bystander';
+    /** Human-readable; do not branch on it. */
+    bullying_reported_reason?: string;
+    /** The speaker's relationship to the conduct. */
+    speaker_role?: SpeakerRole;
     /** Confidence score (0-1) */
     confidence: number;
     /** Severity of the bullying */
@@ -386,7 +462,7 @@ export interface GroomingMessage {
     senderAge?: number;
 }
 
-export interface DetectGroomingInput extends TrackingFields {
+export interface DetectGroomingInput extends TrackingFields, TextDetectionRequestFields {
     /** Sequence of messages to analyze */
     messages: GroomingMessage[];
     /** Age of the child (optional) */
@@ -424,15 +500,47 @@ export interface DetectGroomingInput extends TrackingFields {
      * as a fresh conversation. Useful when the user starts a new chat.
      */
     resetConversation?: boolean;
+    /**
+     * Opt in to a descriptive `relationship_frame` on the result. Costs one
+     * extra analysis step and is ignored in `verdictOnly` mode.
+     */
+    includeRelationshipFrame?: boolean;
 }
 
-export interface GroomingResult {
+/** Grooming indicators the API returns in `flags`. */
+export type GroomingFlag =
+    | 'secrecy_request'
+    | 'boundary_pushing'
+    | 'photo_request'
+    | 'gift_giving'
+    | 'isolation'
+    | 'flattery'
+    | 'sexual_content'
+    | 'meeting_request'
+    | 'reconnaissance'
+    | 'sexualization'
+    | 'grooming'
+    | 'sextortion';
+
+export interface GroomingResult extends TextDetectionFields {
     /** Level of grooming risk detected */
     grooming_risk: GroomingRisk;
     /** Confidence score (0-1) */
     confidence: number;
     /** Grooming indicators/flags detected */
-    flags: string[];
+    flags: GroomingFlag[];
+    /**
+     * `ok` when a verdict was produced. `engine_error` means no verdict could
+     * be produced and the action asks for review; `out_of_scope_adults` means
+     * the declared participants put the conversation outside this detector's
+     * scope, so it was not analysed. Never read a `none` risk on either of
+     * those as safe.
+     */
+    analysis_status?: 'ok' | 'engine_error' | 'out_of_scope_adults';
+    /** Whether the speaker is using the tactics or describing someone else using them. */
+    speaker_stance?: SpeakerStance;
+    /** Descriptive only; present when `includeRelationshipFrame` was requested. */
+    relationship_frame?: 'established_offline' | 'online_only' | 'unestablished';
     /**
      * Explanation of the analysis — this is what a moderator reads to triage
      * the incident, and always generated, including when `verdictOnly` is set.
@@ -517,7 +625,7 @@ export interface GroomingResult {
 // Unsafe Content Detection
 // =============================================================================
 
-export interface DetectUnsafeInput extends TrackingFields {
+export interface DetectUnsafeInput extends TrackingFields, TextDetectionRequestFields {
     /** The content to analyze */
     content: string;
     /** Context for better analysis */
@@ -538,6 +646,11 @@ export interface DetectUnsafeInput extends TrackingFields {
      * conversation. Useful when starting a new chat in the same session.
      */
     resetConversation?: boolean;
+    /**
+     * Start a new conversation while keeping the cross-conversation pattern
+     * carried by `continuationToken`. Requires `continuationToken`.
+     */
+    newConversation?: boolean;
     /**
      * Fast mode. When true, the response omits any per-message
      * `message_analysis` breakdown and returns only the verdict. Lower latency
@@ -569,18 +682,27 @@ export interface DetectUnsafeInput extends TrackingFields {
     flagRiskTerms?: boolean;
 }
 
-export interface UnsafeResult {
+export interface UnsafeResult extends TextDetectionFields {
     /** Whether unsafe content was detected */
     unsafe: boolean;
     /** Categories of unsafe content detected */
     categories: string[];
+    /** Published influences on severity. */
+    context_factors?: string[];
+    /**
+     * True when the result rests on a child reporting a risk to somebody
+     * else. Route it to your safeguarding process.
+     */
+    third_party_concern?: boolean;
+    /** Human-readable; do not branch on it. */
+    third_party_concern_reason?: string;
     /** Severity of the unsafe content */
     severity: Severity;
     /** Confidence score (0-1) */
     confidence: number;
     /** Risk score (0-1) */
     risk_score: number;
-    /** Risk level derived from risk_score */
+    /** @deprecated Not returned by the API; derive a level from `risk_score` or `severity`. */
     risk_level?: 'none' | 'low' | 'medium' | 'high' | 'critical';
     /**
      * Explanation of the analysis — this is what a moderator reads to triage
