@@ -9,16 +9,46 @@
  */
 
 export type IncidentSource = 'text' | 'voice' | 'image' | 'video' | 'video_stream';
-export type IncidentSeverity = 'low' | 'medium' | 'high' | 'critical';
-export type IncidentStatus = 'new' | 'reviewing' | 'escalated' | 'resolved' | 'dismissed';
+/** An incident's stored `risk_level`. Detection responses and webhooks spell `moderate` as `medium`. */
+export type IncidentSeverity = 'low' | 'moderate' | 'high' | 'critical';
+/** An incident's moderation `status`. */
+export type IncidentStatus = 'new' | 'reviewed' | 'escalated' | 'resolved' | 'dismissed';
+/** An incident's `risk_category`. */
+export type IncidentCategory =
+    | 'bullying'
+    | 'grooming'
+    | 'unsafe'
+    | 'self_harm'
+    | 'other'
+    | 'social_engineering'
+    | 'app_fraud'
+    | 'romance_scam'
+    | 'mule_recruitment'
+    | 'gambling_harm'
+    | 'coercive_control'
+    | 'vulnerability_exploitation'
+    | 'radicalisation'
+    | 'distress_signals'
+    | 'tfgbv'
+    | 'synthetic_content';
+
+/** Whether the speaker is doing what was detected or reporting someone else doing it. */
+export type SpeakerStance = 'deploying' | 'describing_third_party' | 'unclear';
 
 export interface ListIncidentsInput {
     /** Filter by risk_category (e.g. 'bullying', 'grooming', 'synthetic_content'). */
-    category?: string;
-    /** Filter by risk_level. */
-    severity?: IncidentSeverity;
-    /** Filter by moderation status. */
-    status?: IncidentStatus;
+    category?: IncidentCategory | (string & {});
+    /**
+     * Filter by risk_level. `medium` is accepted as another spelling of
+     * `moderate` and returns the same incidents.
+     */
+    severity?: IncidentSeverity | 'medium';
+    /**
+     * Filter by moderation status. `reviewing` is deprecated: it is still
+     * accepted, but no incident holds it, so it returns nothing. Use `new`
+     * for incidents nobody has acted on and `reviewed` for ones a moderator has.
+     */
+    status?: IncidentStatus | 'reviewing';
     /** Filter by source modality. */
     source?: IncidentSource;
     /** ISO 8601 inclusive lower bound on created_at. */
@@ -45,15 +75,36 @@ export interface ListIncidentsInput {
 
 export interface IncidentSummaryRow {
     id: string;
-    risk_category: string;
-    risk_level: string;
+    risk_category: IncidentCategory;
+    risk_level: IncidentSeverity;
     confidence_score: number | null;
     detected_patterns: string[];
+    /** Routing keys for this incident, on list rows as well as detail. */
+    recommended_actions: string[];
     platform: string | null;
     language: string | null;
-    source: string;
+    source: IncidentSource;
     file_id: string | null;
-    status: string;
+    status: IncidentStatus;
+    /**
+     * Your policy rules' verdict on this incident, in the same shape as the
+     * detection response's `policy_action`. Null when no rule matched.
+     */
+    policy_action: Record<string, unknown> | null;
+    /** Advisory next status for a moderator. Never applied automatically. */
+    recommended_status: IncidentStatus | null;
+    /** Adjustment the API applied to this result, reported for transparency. Descriptive only. Null when it did not apply. */
+    escalation_capped: boolean | null;
+    /** Human-readable explanation of the adjustment. Null when it did not apply. */
+    escalation_capped_reason: string | null;
+    /** Whether the speaker is doing what was detected or reporting it. Null when not assessed. */
+    speaker_stance: SpeakerStance | null;
+    /** Adjustment the API applied to this result, reported for transparency. Descriptive only. Null when it did not apply. */
+    action_capped: boolean | null;
+    /** Human-readable explanation of the adjustment. Null when it did not apply. */
+    action_capped_reason: string | null;
+    /** True when the incident came from a non-production API key (test traffic). */
+    is_test: boolean | null;
     external_id: string | null;
     customer_id: string | null;
     created_at: string;
@@ -84,7 +135,6 @@ export interface IncidentDetail extends IncidentSummaryRow {
     visual_confidence?: number | null;
     contains_text?: boolean | null;
     contains_faces?: boolean | null;
-    recommended_actions?: string[];
     emotional_indicators?: string[];
     review?: Record<string, unknown> | null;
     /**
@@ -110,7 +160,7 @@ export interface IncidentsOverviewInput {
 export interface IncidentsOverview {
     timeframe: { from: string; to: string };
     total_incidents: number;
-    /** High/critical incidents in `new` or `reviewing` status — actionable triage queue size. */
+    /** High/critical incidents nobody has acted on yet: the actionable triage queue size. */
     requires_review_count: number;
     last_24h_count: number;
     last_7d_count: number;

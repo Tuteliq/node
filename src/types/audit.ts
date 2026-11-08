@@ -1,3 +1,5 @@
+import type { IncidentSeverity, IncidentCategory } from './incidents.js';
+
 // =============================================================================
 // EU AI Act Art 12 audit receipts
 // =============================================================================
@@ -34,6 +36,14 @@ export interface AuditReceiptPayload {
     retention_class: RetentionClass;
     model?: { id: string; version?: string; prompt_template_version?: string };
     thresholds_applied?: Record<string, number>;
+    /**
+     * Compact, content-free description of the decision: no identifier, no
+     * content and no timestamp, identical for any two detections with the
+     * same harm shape.
+     */
+    harm_descriptor?: string;
+    /** Your own pseudonymous reference for this detection, echoed back verbatim. */
+    external_ref?: string;
     biometric?: {
         match_result?: 'matched' | 'no_match' | 'inconclusive';
         document_type?: string;
@@ -42,7 +52,7 @@ export interface AuditReceiptPayload {
     moderator_review?: {
         target_request_id: string;
         target_incident_id: string;
-        action: 'confirm' | 'downgrade' | 'escalate' | 'reclassify' | 'dismiss';
+        action: ModeratorAction;
         reason_code: string;
         moderator_external_id?: string;
         original?: { risk_category?: string; risk_level?: string };
@@ -97,9 +107,9 @@ export interface ReviewIncidentInput {
     /** Free-form comment; encrypted with the customer's registered public key when E2E is enabled. */
     reason_comment?: string;
     /** New risk level (required for `downgrade` / `escalate`, optional for `reclassify`). */
-    new_risk_level?: string;
+    new_risk_level?: IncidentSeverity;
     /** New category (required for `reclassify`). */
-    new_risk_category?: string;
+    new_risk_category?: IncidentCategory;
     /**
      * Identifier of the moderator making the decision. **Required.**
      *
@@ -136,9 +146,10 @@ export interface BatchReviewIncidentsInput {
     action: ModeratorAction;
     reason_code: ModeratorReasonCode;
     reason_comment?: string;
-    new_risk_level?: string;
-    new_risk_category?: string;
-    moderator_external_id?: string;
+    new_risk_level?: IncidentSeverity;
+    new_risk_category?: IncidentCategory;
+    /** Identifier of the moderator making the decision. **Required**; see `ReviewIncidentInput`. */
+    moderator_external_id: string;
     retention_class?: RetentionClass;
 }
 

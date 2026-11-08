@@ -52,6 +52,16 @@ import {
     BreachResult,
     UpdateBreachInput,
     GetBreachesOptions,
+    // API key quota
+    ApiKeyQuota,
+    // Status, fleet, DSA transparency report
+    ApiStatus,
+    PingResult,
+    ComponentPing,
+    FleetResult,
+    FleetDeviceResult,
+    DsaTransparencyReportInput,
+    DsaTransparencyReport,
     // Media types
     AnalyzeVoiceInput,
     VoiceAnalysisResult,
@@ -449,6 +459,53 @@ export class Tuteliq {
         path: string,
         body?: unknown
     ): Promise<T> {
+        return this.send(method, path, body, async (response) => {
+            await this.throwIfError(response);
+            return await response.json() as T;
+        });
+    }
+
+    /**
+     * Make an authenticated GET request whose body is text (e.g. a CSV export)
+     */
+    private async requestText(path: string): Promise<string> {
+        return this.send('GET', path, undefined, async (response) => {
+            await this.throwIfError(response);
+            return await response.text();
+        });
+    }
+
+    /**
+     * GET a status endpoint. A 503 there is an answer (the service or
+     * component is down), so it is returned like a 200 instead of thrown.
+     */
+    private async requestStatus<T>(path: string): Promise<T> {
+        return this.send('GET', path, undefined, async (response) => {
+            if (response.status !== 503) await this.throwIfError(response);
+            return await response.json() as T;
+        });
+    }
+
+    /**
+     * Throw the typed error for a non-2xx response
+     */
+    private async throwIfError(response: Response): Promise<void> {
+        if (!response.ok) {
+            const errorBody = await response.json().catch(() => ({})) as ApiError;
+            this.handleErrorResponse(response.status, errorBody, response.headers);
+        }
+    }
+
+    /**
+     * Send a request, record response metadata and hand the response to
+     * `read`. Network failures and timeouts become typed errors.
+     */
+    private async send<T>(
+        method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE',
+        path: string,
+        body: unknown,
+        read: (response: Response) => Promise<T>
+    ): Promise<T> {
         const url = `${API_BASE_URL}${path}`;
         const startTime = Date.now();
 
@@ -501,13 +558,7 @@ export class Tuteliq {
             // Usage warning header
             this._usageWarning = response.headers.get('x-usage-warning');
 
-            // Handle error responses
-            if (!response.ok) {
-                const errorBody = await response.json().catch(() => ({})) as ApiError;
-                this.handleErrorResponse(response.status, errorBody, response.headers);
-            }
-
-            return await response.json() as T;
+            return await read(response);
         } catch (error) {
             clearTimeout(timeoutId);
             this._lastLatencyMs = Date.now() - startTime;
@@ -1508,20 +1559,26 @@ export class Tuteliq {
     // =========================================================================
 
     /**
-     * Get usage summary for the current billing period
+     * Get one day's request counts for this API key, with the tier's limits.
+     * For billing-period usage, use `getUsageMonthly()`.
+     *
+     * @param date - Date in YYYY-MM-DD format (defaults to today)
      *
      * @example
      * ```typescript
      * const summary = await tuteliq.getUsageSummary()
-     * console.log('Used:', summary.messages_used)
-     * console.log('Limit:', summary.message_limit)
-     * console.log('Percent:', summary.usage_percentage)
+     * console.log('Requests today:', summary.usage.totalRequests)
+     * console.log('Errors:', summary.usage.errorRequests)
+     * console.log('Per minute:', summary.quota.requestsPerMinute)
      * ```
      */
-    async getUsageSummary(): Promise<UsageSummary> {
+    async getUsageSummary(date?: string): Promise<UsageSummary> {
+        const params = new URLSearchParams();
+        if (date) params.set('date', date);
+        const query = params.toString() ? `?${params.toString()}` : '';
         return this.requestWithRetry<UsageSummary>(
             'GET',
-            '/api/v1/usage/summary'
+            `/api/v1/usage/summary${query}`
         );
     }
 
@@ -1690,6 +1747,23 @@ export class Tuteliq {
         return this.requestWithRetry<AuditLogsResult>(
             'GET',
             `/api/v1/account/audit-logs${query}`
+        );
+    }
+
+    /**
+     * Get the API key quota for your tier: active keys, the tier maximum and
+     * whether another key can be created.
+     *
+     * @example
+     * ```typescript
+     * const quota = await tuteliq.getApiKeyQuota()
+     * if (!quota.can_create) console.log('Upgrade:', quota.links.upgrade)
+     * ```
+     */
+    async getApiKeyQuota(): Promise<ApiKeyQuota> {
+        return this.requestWithRetry<ApiKeyQuota>(
+            'GET',
+            '/api/v1/account/api-keys/quota'
         );
     }
 
@@ -2927,6 +3001,9 @@ export class Tuteliq {
         if (!incidentId) {
             throw new ValidationError('incident_id is required');
         }
+        if (!input.moderator_external_id) {
+            throw new ValidationError('moderator_external_id is required');
+        }
         if (input.action === 'reclassify' && !input.new_risk_category) {
             throw new ValidationError('action="reclassify" requires new_risk_category');
         }
@@ -2953,6 +3030,7 @@ export class Tuteliq {
      *   incident_ids: ['abc-…', 'def-…', 'ghi-…'],
      *   action: 'dismiss',
      *   reason_code: 'false_positive',
+     *   moderator_external_id: 'moderator-42',
      * });
      * console.log(`${r.succeeded}/${r.total} dismissed`);
      * if (r.failed > 0) {
@@ -2967,6 +3045,9 @@ export class Tuteliq {
         }
         if (input.incident_ids.length > 100) {
             throw new ValidationError('batchReviewIncidents accepts at most 100 incidents per call');
+        }
+        if (!input.moderator_external_id) {
+            throw new ValidationError('moderator_external_id is required');
         }
         if (input.action === 'reclassify' && !input.new_risk_category) {
             throw new ValidationError('action="reclassify" requires new_risk_category');
@@ -3085,6 +3166,114 @@ export class Tuteliq {
         const qs = new URLSearchParams(query).toString();
         const url = '/api/v1/incidents/trends' + (qs ? `?${qs}` : '');
         return this.requestWithRetry<IncidentTrends>('GET', url);
+    }
+
+    // =========================================================================
+    // DSA transparency report
+    // =========================================================================
+
+    /**
+     * Your moderation numbers for a reporting period, laid out on the DSA
+     * transparency-report template. Aggregates only: no incident content.
+     * Test traffic is excluded. Included in current paid plans; credits scale
+     * with the incidents read.
+     *
+     * `format: 'csv'` returns the CSV text instead of the JSON report.
+     *
+     * @example
+     * ```typescript
+     * const report = await tuteliq.getDsaTransparencyReport({ from: '2026-01-01', to: '2026-06-30' })
+     * console.log(report.scope.incidents_counted, report.unmapped_categories)
+     *
+     * const csv = await tuteliq.getDsaTransparencyReport({ from: '2026-01-01', to: '2026-06-30', format: 'csv' })
+     * ```
+     */
+    async getDsaTransparencyReport(input: DsaTransparencyReportInput & { format: 'csv' }): Promise<string>;
+    async getDsaTransparencyReport(input: DsaTransparencyReportInput & { format?: 'json' }): Promise<DsaTransparencyReport>;
+    async getDsaTransparencyReport(input: DsaTransparencyReportInput): Promise<DsaTransparencyReport | string> {
+        const datePattern = /^\d{4}-\d{2}-\d{2}$/;
+        if (!datePattern.test(input.from ?? '') || !datePattern.test(input.to ?? '')) {
+            throw new ValidationError('from and to are required, in YYYY-MM-DD format');
+        }
+        const query: Record<string, string> = { from: input.from, to: input.to };
+        if (input.format) query.format = input.format;
+        const path = `/api/v1/compliance/dsa-transparency-report?${new URLSearchParams(query).toString()}`;
+        if (input.format === 'csv') {
+            return withRetry(
+                () => this.requestText(path),
+                { maxRetries: this.retries, initialDelay: this.retryDelay }
+            );
+        }
+        return this.requestWithRetry<DsaTransparencyReport>('GET', path);
+    }
+
+    // =========================================================================
+    // Endpoint agent fleet
+    // =========================================================================
+
+    /**
+     * Every device's latest attestation for the org behind the API key,
+     * newest first, with a compliance summary.
+     *
+     * @example
+     * ```typescript
+     * const { summary } = await tuteliq.getFleet()
+     * console.log(`${summary.compliance_pct}% of ${summary.total} devices compliant`)
+     * ```
+     */
+    async getFleet(): Promise<FleetResult> {
+        return this.requestWithRetry<FleetResult>('GET', '/api/v1/agent/fleet');
+    }
+
+    /**
+     * One device's latest attestation. Throws `NotFoundError` if the device
+     * has never checked in for this org.
+     */
+    async getFleetDevice(deviceId: string): Promise<FleetDeviceResult> {
+        if (!deviceId) throw new ValidationError('deviceId is required');
+        return this.requestWithRetry<FleetDeviceResult>(
+            'GET',
+            `/api/v1/agent/fleet/${encodeURIComponent(deviceId)}`,
+        );
+    }
+
+    // =========================================================================
+    // Status (public)
+    //
+    // A 503 from these endpoints is an answer, not a failure: the service or
+    // component is down. These methods return it typed, and do not retry, so
+    // they can drive health checks and circuit breakers directly.
+    // =========================================================================
+
+    /**
+     * Overall API status, component health, uptime and active incidents.
+     * Returns `status: 'major_outage'` (HTTP 503) instead of throwing.
+     *
+     * @example
+     * ```typescript
+     * const status = await tuteliq.getStatus()
+     * if (status.status !== 'operational') console.warn(status.components)
+     * ```
+     */
+    async getStatus(): Promise<ApiStatus> {
+        return this.requestStatus<ApiStatus>('/status');
+    }
+
+    /**
+     * Lightweight liveness check.
+     */
+    async ping(): Promise<PingResult> {
+        return this.requestStatus<PingResult>('/status/ping');
+    }
+
+    /**
+     * Health of one component (for example `database`, `cache`, `ocr`).
+     * Returns `healthy: false` (HTTP 503) instead of throwing; an unknown
+     * component throws `NotFoundError`.
+     */
+    async pingComponent(component: string): Promise<ComponentPing> {
+        if (!component) throw new ValidationError('component is required');
+        return this.requestStatus<ComponentPing>(`/status/ping/${encodeURIComponent(component)}`);
     }
 }
 

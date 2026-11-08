@@ -142,6 +142,8 @@ export type {
     UsageHistoryResult,
     UsageByToolResult,
     UsageMonthlyResult,
+    VerificationUsage,
+    ApiKeyQuota,
 
     // Account types (GDPR)
     AccountDeletionResult,
@@ -242,6 +244,49 @@ export type {
     ModeratorReasonCode,
     ReviewIncidentInput,
     ReviewIncidentResult,
+    BatchReviewIncidentsInput,
+    BatchReviewItemResult,
+    BatchReviewIncidentsResult,
+
+    // Incidents
+    IncidentSource,
+    IncidentSeverity,
+    IncidentCategory,
+    SpeakerStance,
+    ListIncidentsInput,
+    IncidentSummaryRow,
+    ListIncidentsResult,
+    IncidentDetail,
+    IncidentsOverviewInput,
+    IncidentsOverview,
+    IncidentTrendsInput,
+    IncidentTrendsBucket,
+    IncidentTrends,
+
+    // DSA transparency report
+    DsaTransparencyReportInput,
+    DsaTransparencyReport,
+    DsaAvailability,
+    DsaPartialReason,
+    DsaReportField,
+    DsaReportSection,
+    DsaModerationCounts,
+    DsaCategory,
+    DsaCategoryRow,
+    DsaUnmappedRow,
+    DsaMappingRow,
+
+    // Agent fleet
+    AttestationRuleResult,
+    FleetDevice,
+    FleetResult,
+    FleetDeviceResult,
+
+    // Status
+    StatusComponent,
+    ApiStatus,
+    PingResult,
+    ComponentPing,
 
     // Legacy type aliases (backwards compatibility)
     DetectBullyingRequest,
