@@ -11,6 +11,7 @@ import type {
 import type {
     AudioStats,
     DetectSyntheticAudioInput,
+    ForensicSignals,
     DetectSyntheticImageInput,
     DetectSyntheticVideoInput,
     LipSyncResult,
@@ -77,23 +78,31 @@ describe('synthetic results', () => {
         expectTypeOf<SyntheticImageResult['vision']>().toEqualTypeOf<SyntheticVisionResult | undefined>();
     });
 
-    test('image returns the screenshot and deep image summaries and echoes', () => {
-        expectTypeOf<SyntheticImageResult>().toHaveProperty('screenshot_detection');
-        expectTypeOf<SyntheticImageResult>().toHaveProperty('deep_image_analysis');
+    test('image returns the public screenshot summary and echoes, nothing more', () => {
+        type Screenshot = NonNullable<SyntheticImageResult['screenshot_detection']>;
+        expectTypeOf<keyof Screenshot>().toEqualTypeOf<'is_screenshot' | 'confidence'>();
+        expectTypeOf<'deep_image_analysis' extends keyof SyntheticImageResult ? true : false>().toEqualTypeOf<false>();
         expectTypeOf<SyntheticImageResult['file_id']>().toEqualTypeOf<string | undefined>();
         expectTypeOf<SyntheticImageResult['metadata']>().toEqualTypeOf<Record<string, unknown> | undefined>();
     });
 
-    test('audio stats use the field names the API sends', () => {
+    test('audio stats hold exactly the public keys, plus the deprecated rms_mean', () => {
+        expectTypeOf<keyof AudioStats>().toEqualTypeOf<
+            'rms_level' | 'rms_peak' | 'dc_offset' | 'dynamic_range' | 'silence_ratio' | 'peak_count' | 'flat_factor' | 'rms_mean'
+        >();
         expectTypeOf<AudioStats['rms_level']>().toEqualTypeOf<number>();
-        expectTypeOf<AudioStats['peak_count']>().toEqualTypeOf<number>();
         expectTypeOf<AudioStats['rms_mean']>().toEqualTypeOf<number | undefined>();
+    });
+
+    test('forensic summary holds only the public fields', () => {
+        expectTypeOf<keyof ForensicSignals>().toEqualTypeOf<'signal_count' | 'sources' | 'combined_confidence_boost'>();
+        expectTypeOf<keyof ForensicSignals['sources'][number]>().toEqualTypeOf<'name' | 'signal_count' | 'confidence_boost'>();
     });
 
     test('audio transcription may come without segments', () => {
         type Transcription = NonNullable<SyntheticAudioResult['transcription']>;
         expectTypeOf<Transcription['segments']>().toEqualTypeOf<Array<{ start: number; end: number; text: string }> | undefined>();
-        expectTypeOf<SyntheticAudioResult>().toHaveProperty('audio_forensics');
+        expectTypeOf<'audio_forensics' extends keyof SyntheticAudioResult ? true : false>().toEqualTypeOf<false>();
         expectTypeOf<SyntheticAudioResult['file_id']>().toEqualTypeOf<string | undefined>();
     });
 
@@ -105,11 +114,11 @@ describe('synthetic results', () => {
         expectTypeOf<LipSyncResult['signals']>().toEqualTypeOf<string[] | undefined>();
     });
 
-    test('video returns drift_signature, language_status, forensic and audio summaries', () => {
+    test('video returns drift_signature, language_status and the forensic summary', () => {
         expectTypeOf<SyntheticVideoResult['drift_signature']>().toEqualTypeOf<'sawtooth' | 'sinusoidal' | 'stable' | undefined>();
         expectTypeOf<SyntheticVideoResult['language_status']>().toEqualTypeOf<'stable' | 'beta' | undefined>();
         expectTypeOf<SyntheticVideoResult>().toHaveProperty('forensic_signals');
-        expectTypeOf<SyntheticVideoResult>().toHaveProperty('audio_forensics');
+        expectTypeOf<'audio_forensics' extends keyof SyntheticVideoResult ? true : false>().toEqualTypeOf<false>();
         expectTypeOf<SyntheticVideoResult['file_id']>().toEqualTypeOf<string | undefined>();
     });
 });

@@ -178,23 +178,10 @@ export interface KnownSyntheticMatch {
 
 /** The image looks like a screen capture rather than a camera photo. */
 export interface ScreenshotDetection {
-    is_screenshot: true;
+    /** Whether the image looks like a screen capture */
+    is_screenshot: boolean;
     /** Confidence (0.0-1.0) */
     confidence: number;
-    /** Signals behind the assessment */
-    signals: string[];
-}
-
-/** Learned whole-image classifier result. */
-export interface DeepImageAnalysis {
-    /** Whether the classifier judged the image synthetic */
-    is_synthetic: boolean;
-    /** Probability the image is synthetic (0.0-1.0) */
-    synthetic_probability: number;
-    /** Confidence (0.0-1.0) */
-    confidence: number;
-    /** Time taken in milliseconds */
-    processing_ms: number;
 }
 
 export interface SyntheticImageResult {
@@ -218,13 +205,10 @@ export interface SyntheticImageResult {
     evidence?: DetectionEvidence[];
     /**
      * Recommended action, as a stable enum ordered weakest to strongest.
-     * Safe to switch on; human guidance is in `action_detail`.
+     * Safe to switch on.
      */
     recommended_action: RecommendedAction;
-    /**
-     * Optional human-readable expansion of `recommended_action`, for a
-     * moderator UI. Free text: do not branch on it.
-     */
+    /** @deprecated Not part of this endpoint's response; never present. */
     action_detail?: string;
     /** Human-readable rationale */
     rationale: string;
@@ -248,8 +232,6 @@ export interface SyntheticImageResult {
     known_synthetic_match?: KnownSyntheticMatch;
     /** Present only when the image looks like a screen capture rather than a photo */
     screenshot_detection?: ScreenshotDetection;
-    /** Learned whole-image classifier result (present when that analysis ran) */
-    deep_image_analysis?: DeepImageAnalysis;
     /** Processing time in milliseconds */
     processing_time_ms?: number;
     /** Language code */
@@ -315,12 +297,6 @@ export interface AudioStats {
     flat_factor: number;
     /** DC offset */
     dc_offset: number;
-    /** Smoothness of spectral change over time */
-    mfcc_delta_smoothness?: number;
-    /** Regularity of pitch */
-    f0_regularity?: number;
-    /** Formant bandwidth */
-    formant_bandwidth?: number;
 }
 
 /**
@@ -332,17 +308,6 @@ export interface SyntheticTranscription extends Omit<TranscriptionResult, 'segme
     segments?: TranscriptionSegment[];
 }
 
-/** Signal-processing forensics on the waveform. */
-export interface AudioForensics {
-    /** Named measurements; the set of keys may change */
-    metrics: Record<string, number>;
-    /** Signals that point to synthetic audio */
-    signals: string[];
-    /** Contribution to the overall confidence */
-    confidence_boost: number;
-    /** Extra detail, when returned; shape not guaranteed */
-    details?: unknown;
-}
 
 export interface SyntheticAudioResult {
     /** Endpoint name */
@@ -363,13 +328,10 @@ export interface SyntheticAudioResult {
     categories: DetectionCategory[];
     /**
      * Recommended action, as a stable enum ordered weakest to strongest.
-     * Safe to switch on; human guidance is in `action_detail`.
+     * Safe to switch on.
      */
     recommended_action: RecommendedAction;
-    /**
-     * Optional human-readable expansion of `recommended_action`, for a
-     * moderator UI. Free text: do not branch on it.
-     */
+    /** @deprecated Not part of this endpoint's response; never present. */
     action_detail?: string;
     /** Human-readable rationale */
     rationale: string;
@@ -385,8 +347,6 @@ export interface SyntheticAudioResult {
     audio_stats?: AudioStats;
     /** Spectral analysis signals (e.g., low dynamic range, frequency uniformity) */
     spectral_signals?: string[];
-    /** Signal-processing forensics on the waveform */
-    audio_forensics?: AudioForensics;
     /** Processing time in milliseconds */
     processing_time_ms?: number;
     /** Language code */
@@ -501,13 +461,10 @@ export interface SyntheticVideoResult {
     categories: DetectionCategory[];
     /**
      * Recommended action, as a stable enum ordered weakest to strongest.
-     * Safe to switch on; human guidance is in `action_detail`.
+     * Safe to switch on.
      */
     recommended_action: RecommendedAction;
-    /**
-     * Optional human-readable expansion of `recommended_action`, for a
-     * moderator UI. Free text: do not branch on it.
-     */
+    /** @deprecated Not part of this endpoint's response; never present. */
     action_detail?: string;
     /** Human-readable rationale */
     rationale: string;
@@ -534,8 +491,6 @@ export interface SyntheticVideoResult {
     audio_stats?: AudioStats;
     /** Spectral analysis signals */
     spectral_signals?: string[];
-    /** Signal-processing forensics on the audio track (present when it found signals) */
-    audio_forensics?: Omit<AudioForensics, 'details'>;
     /** Multi-signal summary (present only when there are signals) */
     forensic_signals?: ForensicSignals;
     /** Evidence excerpts */
