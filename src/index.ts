@@ -22,7 +22,10 @@ export {
     ChipPolicy,
     VerificationCheck,
     DocumentEvidence,
+    Detection,
+    CONVERSATION_TYPES,
 } from './constants.js';
+export type { ConversationType, DetectionName } from './constants.js';
 
 // Error exports
 export {
@@ -64,6 +67,9 @@ export type {
     GroomingResult,
     DetectUnsafeInput,
     UnsafeResult,
+    TextDetectionRequestFields,
+    BullyingType,
+    GroomingFlag,
     AnalyzeInput,
     AnalyzeResult,
 
@@ -105,6 +111,37 @@ export type {
     AnalyseMultiInput,
     AnalyseMultiResult,
     AnalyseMultiSummary,
+    MultiDetectionResult,
+    SocialEngineeringResult,
+    AppFraudResult,
+    RomanceScamResult,
+    MuleRecruitmentResult,
+    GamblingHarmResult,
+    CoerciveControlResult,
+    VulnerabilityExploitationResult,
+    RadicalisationResult,
+    DistressSignalsResult,
+    TFGBVResult,
+    DetectNicknameInput,
+    NicknameResult,
+    NicknameCategory,
+    NicknameStrictness,
+
+    // Shared text detection fields
+    ParticipantRole,
+    ParticipantRelationship,
+    DeclaredSender,
+    DeclaredRecipient,
+    AttestationReason,
+    DetectionAttestation,
+    AttestationFields,
+    ParticipantsApplied,
+    MinorDisclosure,
+    DeclaredContextFields,
+    SpeakerRole,
+    SpeakerStance,
+    ResultAdjustments,
+    TextDetectionFields,
 
     // Media types
     AnalyzeVoiceInput,
@@ -153,6 +190,8 @@ export type {
     UsageHistoryResult,
     UsageByToolResult,
     UsageMonthlyResult,
+    VerificationUsage,
+    ApiKeyQuota,
 
     // Account types (GDPR)
     AccountDeletionResult,
@@ -259,6 +298,48 @@ export type {
     ModeratorReasonCode,
     ReviewIncidentInput,
     ReviewIncidentResult,
+    BatchReviewIncidentsInput,
+    BatchReviewItemResult,
+    BatchReviewIncidentsResult,
+
+    // Incidents
+    IncidentSource,
+    IncidentSeverity,
+    IncidentCategory,
+    ListIncidentsInput,
+    IncidentSummaryRow,
+    ListIncidentsResult,
+    IncidentDetail,
+    IncidentsOverviewInput,
+    IncidentsOverview,
+    IncidentTrendsInput,
+    IncidentTrendsBucket,
+    IncidentTrends,
+
+    // DSA transparency report
+    DsaTransparencyReportInput,
+    DsaTransparencyReport,
+    DsaAvailability,
+    DsaPartialReason,
+    DsaReportField,
+    DsaReportSection,
+    DsaModerationCounts,
+    DsaCategory,
+    DsaCategoryRow,
+    DsaUnmappedRow,
+    DsaMappingRow,
+
+    // Agent fleet
+    AttestationRuleResult,
+    FleetDevice,
+    FleetResult,
+    FleetDeviceResult,
+
+    // Status
+    StatusComponent,
+    ApiStatus,
+    PingResult,
+    ComponentPing,
 
     // Legacy type aliases (backwards compatibility)
     DetectBullyingRequest,

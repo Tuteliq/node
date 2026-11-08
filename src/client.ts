@@ -52,6 +52,16 @@ import {
     BreachResult,
     UpdateBreachInput,
     GetBreachesOptions,
+    // API key quota
+    ApiKeyQuota,
+    // Status, fleet, DSA transparency report
+    ApiStatus,
+    PingResult,
+    ComponentPing,
+    FleetResult,
+    FleetDeviceResult,
+    DsaTransparencyReportInput,
+    DsaTransparencyReport,
     // Media types
     AnalyzeVoiceInput,
     VoiceAnalysisResult,
@@ -75,9 +85,23 @@ import {
     UsageMonthlyResult,
     // Detection types
     DetectionInput,
-    DetectionResult,
     AnalyseMultiInput,
     AnalyseMultiResult,
+    SocialEngineeringResult,
+    AppFraudResult,
+    RomanceScamResult,
+    MuleRecruitmentResult,
+    GamblingHarmResult,
+    CoerciveControlResult,
+    VulnerabilityExploitationResult,
+    RadicalisationResult,
+    DistressSignalsResult,
+    TFGBVResult,
+    DetectNicknameInput,
+    NicknameResult,
+    DeclaredRecipient,
+    TextDetectionRequestFields,
+    Audience,
     // Video types
     AnalyzeVideoInput,
     VideoAnalysisResult,
@@ -174,6 +198,8 @@ const DEFAULT_RETRY_DELAY = 1000;
 // Input limits to prevent abuse
 const MAX_CONTENT_LENGTH = 50000;  // 50KB max content
 const MAX_MESSAGES_COUNT = 100;    // Max messages per request
+const MAX_NICKNAME_LENGTH = 64;    // Max display name length for detectNickname
+const ACTION_PLAN_AUDIENCES: readonly Audience[] = ['child', 'parent', 'platform'];
 
 /**
  * Tuteliq - AI-powered child safety analysis
@@ -250,6 +276,7 @@ interface BatchApiResponse {
         success: boolean;
         result?: unknown;
         error?: string;
+        error_code?: string;
         credits_used?: number;
     }>;
     summary?: {
@@ -402,11 +429,54 @@ export class Tuteliq {
         // ContextInput) is translated to the wire's prior_messages here --
         // the API only recognizes the snake_case key. Destructured out so
         // the spread below never forwards the untranslated camelCase name.
-        const { priorMessages, ...rest } = context;
+        const {
+            priorMessages,
+            sender,
+            recipients,
+            conversationType,
+            minorDisclosureCheck,
+            authorRole,
+            ...rest
+        } = context;
         return {
             ...rest,
             platform: Tuteliq.resolvePlatform(context.platform),
             ...(priorMessages && { prior_messages: priorMessages }),
+            ...(sender && { sender: Tuteliq.toWireParticipant(sender) }),
+            ...(recipients && { recipients: recipients.map(r => Tuteliq.toWireParticipant(r)) }),
+            ...(conversationType && { conversation_type: conversationType }),
+            ...(minorDisclosureCheck !== undefined && { minor_disclosure_check: minorDisclosureCheck }),
+            ...(authorRole && { author_role: authorRole }),
+        };
+    }
+
+    /**
+     * Translate a declared participant to the wire's snake_case keys.
+     */
+    private static toWireParticipant(participant: DeclaredRecipient): Record<string, unknown> {
+        return {
+            ...(participant.role && { role: participant.role }),
+            ...(participant.ageGroup && { age_group: participant.ageGroup }),
+            ...(participant.relationshipToSender && { relationship_to_sender: participant.relationshipToSender }),
+        };
+    }
+
+    /**
+     * The emotions route reads only `context.age_group`, so it gets neither
+     * the platform nor any other context key.
+     */
+    private static emotionsContext(context?: ContextInput): Record<string, unknown> | undefined {
+        if (!context || typeof context === 'string' || !context.ageGroup) return undefined;
+        return { age_group: context.ageGroup };
+    }
+
+    /**
+     * Top-level request fields shared by the single-endpoint text detectors.
+     */
+    private static textDetectionFields(input: TextDetectionRequestFields): Record<string, unknown> {
+        return {
+            ...(input.attestation !== undefined && { attestation: input.attestation }),
+            ...(input.messageId && { message_id: input.messageId }),
         };
     }
 
@@ -437,6 +507,7 @@ export class Tuteliq {
             // distress-signals additionally issue a fresh token back.
             ...(input.continuationToken && { continuation_token: input.continuationToken }),
             ...(input.resetConversation && { reset_conversation: true }),
+            ...Tuteliq.textDetectionFields(input),
             ...(input.external_id && { external_id: input.external_id }),
             ...(input.customer_id && { customer_id: input.customer_id }),
             ...(input.metadata && { metadata: input.metadata }),
@@ -452,6 +523,53 @@ export class Tuteliq {
         method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE',
         path: string,
         body?: unknown
+    ): Promise<T> {
+        return this.send(method, path, body, async (response) => {
+            await this.throwIfError(response);
+            return await response.json() as T;
+        });
+    }
+
+    /**
+     * Make an authenticated GET request whose body is text (e.g. a CSV export)
+     */
+    private async requestText(path: string): Promise<string> {
+        return this.send('GET', path, undefined, async (response) => {
+            await this.throwIfError(response);
+            return await response.text();
+        });
+    }
+
+    /**
+     * GET a status endpoint. A 503 there is an answer (the service or
+     * component is down), so it is returned like a 200 instead of thrown.
+     */
+    private async requestStatus<T>(path: string): Promise<T> {
+        return this.send('GET', path, undefined, async (response) => {
+            if (response.status !== 503) await this.throwIfError(response);
+            return await response.json() as T;
+        });
+    }
+
+    /**
+     * Throw the typed error for a non-2xx response
+     */
+    private async throwIfError(response: Response): Promise<void> {
+        if (!response.ok) {
+            const errorBody = await response.json().catch(() => ({})) as ApiError;
+            this.handleErrorResponse(response.status, errorBody, response.headers);
+        }
+    }
+
+    /**
+     * Send a request, record response metadata and hand the response to
+     * `read`. Network failures and timeouts become typed errors.
+     */
+    private async send<T>(
+        method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE',
+        path: string,
+        body: unknown,
+        read: (response: Response) => Promise<T>
     ): Promise<T> {
         const url = `${API_BASE_URL}${path}`;
         const startTime = Date.now();
@@ -505,13 +623,7 @@ export class Tuteliq {
             // Usage warning header
             this._usageWarning = response.headers.get('x-usage-warning');
 
-            // Handle error responses
-            if (!response.ok) {
-                const errorBody = await response.json().catch(() => ({})) as ApiError;
-                this.handleErrorResponse(response.status, errorBody, response.headers);
-            }
-
-            return await response.json() as T;
+            return await read(response);
         } catch (error) {
             clearTimeout(timeoutId);
             this._lastLatencyMs = Date.now() - startTime;
@@ -711,8 +823,10 @@ export class Tuteliq {
      * Detect bullying in content
      *
      * Branching guidance: the top-level `is_bullying` boolean fires whenever
-     * the model observes ANY signal — including low-severity monitor-only
-     * cases. For production branching use `result.recommended_action`
+     * the model observes ANY signal, including low-severity monitor-only
+     * cases, and is false when the message reports bullying rather than
+     * doing it (`bullying_reported`), even though that report may still need
+     * a person. For production branching use `result.recommended_action`
      * (`flag_for_review` / `block` / `immediate_intervention`), or the
      * `isActionable` helper.
      *
@@ -751,6 +865,7 @@ export class Tuteliq {
                 ...(input.incident_moderation_enabled !== undefined && { incident_moderation_enabled: input.incident_moderation_enabled }),
                 ...(input.continuationToken && { continuation_token: input.continuationToken }),
                 ...(input.resetConversation && { reset_conversation: true }),
+                ...Tuteliq.textDetectionFields(input),
                 ...(Object.keys(options).length > 0 && { options }),
             }
         );
@@ -761,8 +876,10 @@ export class Tuteliq {
      *
      * Branching guidance: `grooming_risk: "low"` is a monitor-only signal — do
      * not treat it as actionable. For production branching use
-     * `result.recommended_action` (`flag_for_review` / `block` /
-     * `immediate_intervention`), or the `isActionable` helper.
+     * `result.recommended_action` (`flag_for_review` /
+     * `immediate_intervention`; this endpoint does not return `block`), or the
+     * `isActionable` helper. Check `analysis_status` too: a `none` risk with
+     * `engine_error` is not a safe verdict.
      *
      * @example
      * ```typescript
@@ -786,6 +903,7 @@ export class Tuteliq {
         const options: Record<string, unknown> = {};
         if (input.supportThreshold) options.support_threshold = input.supportThreshold;
         if (input.verdictOnly) options.verdict_only = true;
+        if (input.includeRelationshipFrame) options.include_relationship_frame = true;
 
         return this.requestWithRetry<GroomingResult>(
             'POST',
@@ -807,6 +925,7 @@ export class Tuteliq {
                 ...(input.incident_moderation_enabled !== undefined && { incident_moderation_enabled: input.incident_moderation_enabled }),
                 ...(input.continuationToken && { continuation_token: input.continuationToken }),
                 ...(input.resetConversation && { reset_conversation: true }),
+                ...Tuteliq.textDetectionFields(input),
                 ...(Object.keys(options).length > 0 && { options }),
             }
         );
@@ -848,12 +967,14 @@ export class Tuteliq {
             {
                 text: input.content,
                 context: this.normalizeContext(input.context),
+                ...(input.newConversation && { new_conversation: true }),
                 ...(input.external_id && { external_id: input.external_id }),
                 ...(input.customer_id && { customer_id: input.customer_id }),
                 ...(input.metadata && { metadata: input.metadata }),
                 ...(input.incident_moderation_enabled !== undefined && { incident_moderation_enabled: input.incident_moderation_enabled }),
                 ...(input.continuationToken && { continuation_token: input.continuationToken }),
                 ...(input.resetConversation && { reset_conversation: true }),
+                ...Tuteliq.textDetectionFields(input),
                 ...(Object.keys(options).length > 0 && { options }),
             }
         );
@@ -1028,8 +1149,9 @@ export class Tuteliq {
             }));
         }
 
-        if (input.context) {
-            body.context = this.normalizeContext(input.context);
+        const context = Tuteliq.emotionsContext(input.context);
+        if (context) {
+            body.context = context;
         }
 
         if (input.external_id) {
@@ -1040,6 +1162,9 @@ export class Tuteliq {
         }
         if (input.metadata) {
             body.metadata = input.metadata;
+        }
+        if (input.incident_moderation_enabled !== undefined) {
+            body.incident_moderation_enabled = input.incident_moderation_enabled;
         }
 
         return this.requestWithRetry<EmotionsResult>(
@@ -1072,8 +1197,11 @@ export class Tuteliq {
             throw new ValidationError('Situation description is required');
         }
         this.validateContent(input.situation);
+        if (input.audience !== undefined && !ACTION_PLAN_AUDIENCES.includes(input.audience)) {
+            throw new ValidationError(`audience must be one of: ${ACTION_PLAN_AUDIENCES.join(', ')}`);
+        }
 
-        return this.requestWithRetry<ActionPlanResult>(
+        const plan = await this.requestWithRetry<ActionPlanResult>(
             'POST',
             '/api/v1/guidance/action-plan',
             {
@@ -1087,6 +1215,11 @@ export class Tuteliq {
                 ...(input.incident_moderation_enabled !== undefined && { incident_moderation_enabled: input.incident_moderation_enabled }),
             }
         );
+        // `reading_level` is the name this SDK used before it matched the
+        // API's `approx_reading_level`; keep it populated for existing callers.
+        return plan.approx_reading_level !== undefined && plan.reading_level === undefined
+            ? { ...plan, reading_level: plan.approx_reading_level }
+            : plan;
     }
 
     // =========================================================================
@@ -1124,7 +1257,8 @@ export class Tuteliq {
                 })),
                 meta: {
                     child_age: input.childAge,
-                    ...input.incident,
+                    ...(input.conversationId && { conversation_id: input.conversationId }),
+                    ...(input.timestampRange && { timestamp_range: input.timestampRange }),
                 },
                 ...(input.external_id && { external_id: input.external_id }),
                 ...(input.customer_id && { customer_id: input.customer_id }),
@@ -1414,9 +1548,10 @@ export class Tuteliq {
             const messages = item.messages?.length
                 ? item.messages.map(m => ({ sender: m.sender, text: m.content }))
                 : [{ sender: 'user', text: item.content ?? '' }];
+            const context = Tuteliq.emotionsContext(item.context);
             return {
                 messages,
-                context: this.normalizeContext(item.context),
+                ...(context && { context }),
             };
         }
 
@@ -1493,6 +1628,7 @@ export class Tuteliq {
                 success: r.success,
                 ...(r.result !== undefined && { result: r.result }),
                 ...(r.error !== undefined && { error: r.error }),
+                ...(r.error_code !== undefined && { error_code: r.error_code }),
                 ...(r.credits_used !== undefined && { credits_used: r.credits_used }),
                 ...(item?.external_id !== undefined && { external_id: item.external_id }),
             };
@@ -1517,20 +1653,26 @@ export class Tuteliq {
     // =========================================================================
 
     /**
-     * Get usage summary for the current billing period
+     * Get one day's request counts for this API key, with the tier's limits.
+     * For billing-period usage, use `getUsageMonthly()`.
+     *
+     * @param date - Date in YYYY-MM-DD format (defaults to today)
      *
      * @example
      * ```typescript
      * const summary = await tuteliq.getUsageSummary()
-     * console.log('Used:', summary.messages_used)
-     * console.log('Limit:', summary.message_limit)
-     * console.log('Percent:', summary.usage_percentage)
+     * console.log('Requests today:', summary.usage.totalRequests)
+     * console.log('Errors:', summary.usage.errorRequests)
+     * console.log('Per minute:', summary.quota.requestsPerMinute)
      * ```
      */
-    async getUsageSummary(): Promise<UsageSummary> {
+    async getUsageSummary(date?: string): Promise<UsageSummary> {
+        const params = new URLSearchParams();
+        if (date) params.set('date', date);
+        const query = params.toString() ? `?${params.toString()}` : '';
         return this.requestWithRetry<UsageSummary>(
             'GET',
-            '/api/v1/usage/summary'
+            `/api/v1/usage/summary${query}`
         );
     }
 
@@ -1699,6 +1841,23 @@ export class Tuteliq {
         return this.requestWithRetry<AuditLogsResult>(
             'GET',
             `/api/v1/account/audit-logs${query}`
+        );
+    }
+
+    /**
+     * Get the API key quota for your tier: active keys, the tier maximum and
+     * whether another key can be created.
+     *
+     * @example
+     * ```typescript
+     * const quota = await tuteliq.getApiKeyQuota()
+     * if (!quota.can_create) console.log('Upgrade:', quota.links.upgrade)
+     * ```
+     */
+    async getApiKeyQuota(): Promise<ApiKeyQuota> {
+        return this.requestWithRetry<ApiKeyQuota>(
+            'GET',
+            '/api/v1/account/api-keys/quota'
         );
     }
 
@@ -1908,9 +2067,9 @@ export class Tuteliq {
     /**
      * Detect social engineering tactics (pretexting, impersonation, urgency, authority exploitation)
      */
-    async detectSocialEngineering(input: DetectionInput): Promise<DetectionResult> {
+    async detectSocialEngineering(input: DetectionInput): Promise<SocialEngineeringResult> {
         this.validateContent(input.content);
-        return this.requestWithRetry<DetectionResult>(
+        return this.requestWithRetry<SocialEngineeringResult>(
             'POST', '/api/v1/fraud/social-engineering',
             this.buildDetectionBody(input)
         );
@@ -1919,9 +2078,9 @@ export class Tuteliq {
     /**
      * Detect app-based fraud (fake apps, malicious downloads, clone apps, fraudulent reviews)
      */
-    async detectAppFraud(input: DetectionInput): Promise<DetectionResult> {
+    async detectAppFraud(input: DetectionInput): Promise<AppFraudResult> {
         this.validateContent(input.content);
-        return this.requestWithRetry<DetectionResult>(
+        return this.requestWithRetry<AppFraudResult>(
             'POST', '/api/v1/fraud/app-fraud',
             this.buildDetectionBody(input)
         );
@@ -1930,9 +2089,9 @@ export class Tuteliq {
     /**
      * Detect romance scam patterns (love-bombing, financial requests, identity fabrication)
      */
-    async detectRomanceScam(input: DetectionInput): Promise<DetectionResult> {
+    async detectRomanceScam(input: DetectionInput): Promise<RomanceScamResult> {
         this.validateContent(input.content);
-        return this.requestWithRetry<DetectionResult>(
+        return this.requestWithRetry<RomanceScamResult>(
             'POST', '/api/v1/fraud/romance-scam',
             this.buildDetectionBody(input)
         );
@@ -1941,9 +2100,9 @@ export class Tuteliq {
     /**
      * Detect money mule recruitment (easy money offers, account sharing, laundering language)
      */
-    async detectMuleRecruitment(input: DetectionInput): Promise<DetectionResult> {
+    async detectMuleRecruitment(input: DetectionInput): Promise<MuleRecruitmentResult> {
         this.validateContent(input.content);
-        return this.requestWithRetry<DetectionResult>(
+        return this.requestWithRetry<MuleRecruitmentResult>(
             'POST', '/api/v1/fraud/mule-recruitment',
             this.buildDetectionBody(input)
         );
@@ -1956,9 +2115,9 @@ export class Tuteliq {
     /**
      * Detect gambling harm (underage gambling, addiction patterns, predatory odds)
      */
-    async detectGamblingHarm(input: DetectionInput): Promise<DetectionResult> {
+    async detectGamblingHarm(input: DetectionInput): Promise<GamblingHarmResult> {
         this.validateContent(input.content);
-        return this.requestWithRetry<DetectionResult>(
+        return this.requestWithRetry<GamblingHarmResult>(
             'POST', '/api/v1/safety/gambling-harm',
             this.buildDetectionBody(input)
         );
@@ -1967,9 +2126,9 @@ export class Tuteliq {
     /**
      * Detect coercive control patterns (isolation, financial control, surveillance, threats)
      */
-    async detectCoerciveControl(input: DetectionInput): Promise<DetectionResult> {
+    async detectCoerciveControl(input: DetectionInput): Promise<CoerciveControlResult> {
         this.validateContent(input.content);
-        return this.requestWithRetry<DetectionResult>(
+        return this.requestWithRetry<CoerciveControlResult>(
             'POST', '/api/v1/safety/coercive-control',
             this.buildDetectionBody(input)
         );
@@ -1978,9 +2137,9 @@ export class Tuteliq {
     /**
      * Detect vulnerability exploitation with cross-endpoint vulnerability modifier
      */
-    async detectVulnerabilityExploitation(input: DetectionInput): Promise<DetectionResult> {
+    async detectVulnerabilityExploitation(input: DetectionInput): Promise<VulnerabilityExploitationResult> {
         this.validateContent(input.content);
-        return this.requestWithRetry<DetectionResult>(
+        return this.requestWithRetry<VulnerabilityExploitationResult>(
             'POST', '/api/v1/safety/vulnerability-exploitation',
             this.buildDetectionBody(input)
         );
@@ -1989,9 +2148,9 @@ export class Tuteliq {
     /**
      * Detect radicalisation indicators (extremist rhetoric, recruitment patterns, dehumanisation)
      */
-    async detectRadicalisation(input: DetectionInput): Promise<DetectionResult> {
+    async detectRadicalisation(input: DetectionInput): Promise<RadicalisationResult> {
         this.validateContent(input.content);
-        return this.requestWithRetry<DetectionResult>(
+        return this.requestWithRetry<RadicalisationResult>(
             'POST', '/api/v1/safety/radicalisation',
             this.buildDetectionBody(input)
         );
@@ -2005,9 +2164,9 @@ export class Tuteliq {
      * than inner-state emotion inference — important under EU AI Act
      * Art 5(1)(f). Replaces the deprecated `detectEmotionalDistress`.
      */
-    async detectDistressSignals(input: DetectionInput): Promise<DetectionResult> {
+    async detectDistressSignals(input: DetectionInput): Promise<DistressSignalsResult> {
         this.validateContent(input.content);
-        return this.requestWithRetry<DetectionResult>(
+        return this.requestWithRetry<DistressSignalsResult>(
             'POST', '/api/v1/safety/distress-signals',
             this.buildDetectionBody(input)
         );
@@ -2018,11 +2177,60 @@ export class Tuteliq {
      * Covers image-based abuse, cyber stalking, online harassment, doxing,
      * outing, post-separation abuse, digital coercion, and sexualised deepfakes.
      */
-    async detectTFGBV(input: DetectionInput): Promise<DetectionResult> {
+    async detectTFGBV(input: DetectionInput): Promise<TFGBVResult> {
         this.validateContent(input.content);
-        return this.requestWithRetry<DetectionResult>(
+        return this.requestWithRetry<TFGBVResult>(
             'POST', '/api/v1/safety/tfgbv',
             this.buildDetectionBody(input)
+        );
+    }
+
+    /**
+     * Read a display name (nickname, username) for concerns before it is
+     * shown to others.
+     *
+     * The result is a signal about the name, not a verdict on the person, and
+     * carries `recommendation` rather than `recommended_action`. When
+     * `reading_complete` is false nothing was analysed (and nothing charged):
+     * retry rather than treating `signal: 'none'` as clean.
+     *
+     * @example
+     * ```typescript
+     * const result = await tuteliq.detectNickname({
+     *   name: 'xX_player_Xx',
+     *   context: { ageGroup: '11-13', platformReserved: ['Support', 'Admin'] },
+     * })
+     *
+     * if (result.reading_complete && result.recommendation === 'hold_for_review') {
+     *   console.log(result.recommendation_detail)
+     * }
+     * ```
+     */
+    async detectNickname(input: DetectNicknameInput): Promise<NicknameResult> {
+        if (!input.name || typeof input.name !== 'string' || input.name.trim().length === 0) {
+            throw new ValidationError('Name is required');
+        }
+        if (input.name.length > MAX_NICKNAME_LENGTH) {
+            throw new ValidationError(`Name exceeds maximum length of ${MAX_NICKNAME_LENGTH} characters`);
+        }
+
+        // Built explicitly rather than through normalizeContext: this route
+        // takes no platform and only these four context keys.
+        const ctx = input.context;
+        const context = ctx && {
+            ...(ctx.language && { language: ctx.language }),
+            ...(ctx.ageGroup && { age_group: ctx.ageGroup }),
+            ...(ctx.conversationType && { conversation_type: ctx.conversationType }),
+            ...(ctx.platformReserved && { platform_reserved: ctx.platformReserved }),
+        };
+
+        return this.requestWithRetry<NicknameResult>(
+            'POST', '/api/v1/safety/nickname',
+            {
+                name: input.name,
+                ...(input.strictness && { strictness: input.strictness }),
+                ...(context && Object.keys(context).length > 0 && { context }),
+            }
         );
     }
 
@@ -2060,7 +2268,8 @@ export class Tuteliq {
         const options: Record<string, unknown> = {};
         if (input.includeEvidence) options.include_evidence = true;
         if (input.supportThreshold) options.support_threshold = input.supportThreshold;
-        if (input.verdictOnly) options.verdict_only = true;
+        if (input.flagProfanity !== undefined) options.flag_profanity = input.flagProfanity;
+        if (input.flagRiskTerms !== undefined) options.flag_risk_terms = input.flagRiskTerms;
 
         return this.requestWithRetry<AnalyseMultiResult>(
             'POST', '/api/v1/analyse/multi',
@@ -2991,6 +3200,9 @@ export class Tuteliq {
         if (!incidentId) {
             throw new ValidationError('incident_id is required');
         }
+        if (!input.moderator_external_id) {
+            throw new ValidationError('moderator_external_id is required');
+        }
         if (input.action === 'reclassify' && !input.new_risk_category) {
             throw new ValidationError('action="reclassify" requires new_risk_category');
         }
@@ -3017,6 +3229,7 @@ export class Tuteliq {
      *   incident_ids: ['abc-…', 'def-…', 'ghi-…'],
      *   action: 'dismiss',
      *   reason_code: 'false_positive',
+     *   moderator_external_id: 'moderator-42',
      * });
      * console.log(`${r.succeeded}/${r.total} dismissed`);
      * if (r.failed > 0) {
@@ -3031,6 +3244,9 @@ export class Tuteliq {
         }
         if (input.incident_ids.length > 100) {
             throw new ValidationError('batchReviewIncidents accepts at most 100 incidents per call');
+        }
+        if (!input.moderator_external_id) {
+            throw new ValidationError('moderator_external_id is required');
         }
         if (input.action === 'reclassify' && !input.new_risk_category) {
             throw new ValidationError('action="reclassify" requires new_risk_category');
@@ -3149,6 +3365,114 @@ export class Tuteliq {
         const qs = new URLSearchParams(query).toString();
         const url = '/api/v1/incidents/trends' + (qs ? `?${qs}` : '');
         return this.requestWithRetry<IncidentTrends>('GET', url);
+    }
+
+    // =========================================================================
+    // DSA transparency report
+    // =========================================================================
+
+    /**
+     * Your moderation numbers for a reporting period, laid out on the DSA
+     * transparency-report template. Aggregates only: no incident content.
+     * Test traffic is excluded. Included in current paid plans; credits scale
+     * with the incidents read.
+     *
+     * `format: 'csv'` returns the CSV text instead of the JSON report.
+     *
+     * @example
+     * ```typescript
+     * const report = await tuteliq.getDsaTransparencyReport({ from: '2026-01-01', to: '2026-06-30' })
+     * console.log(report.scope.incidents_counted, report.unmapped_categories)
+     *
+     * const csv = await tuteliq.getDsaTransparencyReport({ from: '2026-01-01', to: '2026-06-30', format: 'csv' })
+     * ```
+     */
+    async getDsaTransparencyReport(input: DsaTransparencyReportInput & { format: 'csv' }): Promise<string>;
+    async getDsaTransparencyReport(input: DsaTransparencyReportInput & { format?: 'json' }): Promise<DsaTransparencyReport>;
+    async getDsaTransparencyReport(input: DsaTransparencyReportInput): Promise<DsaTransparencyReport | string> {
+        const datePattern = /^\d{4}-\d{2}-\d{2}$/;
+        if (!datePattern.test(input.from ?? '') || !datePattern.test(input.to ?? '')) {
+            throw new ValidationError('from and to are required, in YYYY-MM-DD format');
+        }
+        const query: Record<string, string> = { from: input.from, to: input.to };
+        if (input.format) query.format = input.format;
+        const path = `/api/v1/compliance/dsa-transparency-report?${new URLSearchParams(query).toString()}`;
+        if (input.format === 'csv') {
+            return withRetry(
+                () => this.requestText(path),
+                { maxRetries: this.retries, initialDelay: this.retryDelay }
+            );
+        }
+        return this.requestWithRetry<DsaTransparencyReport>('GET', path);
+    }
+
+    // =========================================================================
+    // Endpoint agent fleet
+    // =========================================================================
+
+    /**
+     * Every device's latest attestation for the org behind the API key,
+     * newest first, with a compliance summary.
+     *
+     * @example
+     * ```typescript
+     * const { summary } = await tuteliq.getFleet()
+     * console.log(`${summary.compliance_pct}% of ${summary.total} devices compliant`)
+     * ```
+     */
+    async getFleet(): Promise<FleetResult> {
+        return this.requestWithRetry<FleetResult>('GET', '/api/v1/agent/fleet');
+    }
+
+    /**
+     * One device's latest attestation. Throws `NotFoundError` if the device
+     * has never checked in for this org.
+     */
+    async getFleetDevice(deviceId: string): Promise<FleetDeviceResult> {
+        if (!deviceId) throw new ValidationError('deviceId is required');
+        return this.requestWithRetry<FleetDeviceResult>(
+            'GET',
+            `/api/v1/agent/fleet/${encodeURIComponent(deviceId)}`,
+        );
+    }
+
+    // =========================================================================
+    // Status (public)
+    //
+    // A 503 from these endpoints is an answer, not a failure: the service or
+    // component is down. These methods return it typed, and do not retry, so
+    // they can drive health checks and circuit breakers directly.
+    // =========================================================================
+
+    /**
+     * Overall API status, component health, uptime and active incidents.
+     * Returns `status: 'major_outage'` (HTTP 503) instead of throwing.
+     *
+     * @example
+     * ```typescript
+     * const status = await tuteliq.getStatus()
+     * if (status.status !== 'operational') console.warn(status.components)
+     * ```
+     */
+    async getStatus(): Promise<ApiStatus> {
+        return this.requestStatus<ApiStatus>('/status');
+    }
+
+    /**
+     * Lightweight liveness check.
+     */
+    async ping(): Promise<PingResult> {
+        return this.requestStatus<PingResult>('/status/ping');
+    }
+
+    /**
+     * Health of one component (for example `database`, `cache`, `ocr`).
+     * Returns `healthy: false` (HTTP 503) instead of throwing; an unknown
+     * component throws `NotFoundError`.
+     */
+    async pingComponent(component: string): Promise<ComponentPing> {
+        if (!component) throw new ValidationError('component is required');
+        return this.requestStatus<ComponentPing>(`/status/ping/${encodeURIComponent(component)}`);
     }
 }
 

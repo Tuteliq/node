@@ -22,6 +22,10 @@ export interface AccountExportResult {
     exportedAt: string;
     /** All user data grouped by collection */
     data: Record<string, unknown[]>;
+    /** Collections that could not be read in full. Request the export again later. */
+    incompleteCollections?: string[];
+    /** Collections whose completeness could not be confirmed. */
+    unverifiedCollections?: string[];
 }
 
 // =============================================================================
@@ -48,15 +52,19 @@ export interface ConsentRecord {
     /** Consent record ID */
     id: string;
     /** User ID */
-    user_id: string;
+    userId: string;
     /** Type of consent */
     consent_type: ConsentType;
     /** Current status */
     status: ConsentStatus;
     /** Policy version */
     version: string;
+    /** Hashed origin of the consent action, when stored */
+    ip_hash?: string;
     /** When the consent was recorded */
     created_at: string;
+    /** @deprecated The API sends this as `userId`. */
+    user_id?: string;
 }
 
 export interface ConsentStatusResult {
@@ -108,13 +116,24 @@ export interface AuditLogEntry {
     /** Audit log entry ID */
     id: string;
     /** User ID */
-    user_id: string;
+    userId: string;
     /** Action that was performed */
     action: AuditAction;
-    /** Additional details */
-    details?: Record<string, unknown>;
+    /** Hashed origin of the request, when stored */
+    ip_hash?: string;
+    /** User agent of the request, when stored */
+    user_agent?: string;
+    /**
+     * Additional details as a string. Stored encrypted: when `_encrypted` is
+     * true this may be ciphertext rather than readable JSON.
+     */
+    details?: string;
+    /** Whether `details` is stored encrypted */
+    _encrypted: boolean;
     /** When the action occurred */
     created_at: string;
+    /** @deprecated The API sends this as `userId`. */
+    user_id?: string;
 }
 
 export interface AuditLogsResult {
@@ -127,6 +146,25 @@ export interface GetAuditLogsOptions {
     action?: AuditAction;
     /** Maximum number of results */
     limit?: number;
+}
+
+// =============================================================================
+// API key quota
+// =============================================================================
+
+/** Result from `GET /api/v1/account/api-keys/quota`. */
+export interface ApiKeyQuota {
+    /** Current tier */
+    tier: string;
+    /** API keys currently active on the account */
+    active_keys: number;
+    /** Maximum active keys for the tier, or `'unlimited'` */
+    max_keys: number | 'unlimited';
+    /** Whether another key can be created now */
+    can_create: boolean;
+    links: {
+        upgrade: string;
+    };
 }
 
 // =============================================================================

@@ -47,6 +47,17 @@ export enum RiskCategory {
     UNSAFE = 'unsafe',
     SELF_HARM = 'self_harm',
     OTHER = 'other',
+    SOCIAL_ENGINEERING = 'social_engineering',
+    APP_FRAUD = 'app_fraud',
+    ROMANCE_SCAM = 'romance_scam',
+    MULE_RECRUITMENT = 'mule_recruitment',
+    GAMBLING_HARM = 'gambling_harm',
+    COERCIVE_CONTROL = 'coercive_control',
+    VULNERABILITY_EXPLOITATION = 'vulnerability_exploitation',
+    RADICALISATION = 'radicalisation',
+    DISTRESS_SIGNALS = 'distress_signals',
+    TFGBV = 'tfgbv',
+    SYNTHETIC_CONTENT = 'synthetic_content',
 }
 
 /**
@@ -88,7 +99,9 @@ export enum EmotionTrend {
 export enum IncidentStatus {
     NEW = 'new',
     REVIEWED = 'reviewed',
+    ESCALATED = 'escalated',
     RESOLVED = 'resolved',
+    DISMISSED = 'dismissed',
 }
 
 /**
@@ -276,7 +289,50 @@ export enum Detection {
     COERCIVE_CONTROL = 'coercive-control',
     VULNERABILITY_EXPLOITATION = 'vulnerability-exploitation',
     RADICALISATION = 'radicalisation',
+    DISTRESS_SIGNALS = 'distress-signals',
+    TFGBV = 'tfgbv',
+    SYNTHETIC_CONTENT = 'synthetic-content',
 }
+
+/**
+ * Detection endpoint names accepted by `analyseMulti`, as plain strings.
+ * Every `Detection` enum value is assignable to this type.
+ */
+export type DetectionName = `${Detection}`;
+
+/**
+ * The declared settings a text can be written in, for
+ * `context.conversationType` and the account's `default_conversation_type`.
+ * Declared by your platform, never inferred from the text.
+ */
+export const CONVERSATION_TYPES = [
+    'fraud_report',
+    'abuse_report',
+    'support_disclosure',
+    'helpline',
+    'clinical',
+    'investigative',
+    'legal',
+    'advisory',
+    'training',
+    'journalism',
+    'research',
+    'moderation_review',
+    'healthcare',
+    'law_enforcement',
+    'education',
+    'family',
+    'workplace',
+    'dating',
+    'adult_community',
+    'direct_message',
+    'group_chat',
+    'public_post',
+    'customer_service',
+    'gaming_chat',
+] as const;
+
+export type ConversationType = (typeof CONVERSATION_TYPES)[number];
 
 /**
  * Verification mode for age or identity verification sessions

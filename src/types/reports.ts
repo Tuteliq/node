@@ -18,7 +18,14 @@ export interface GenerateReportInput extends TrackingFields {
     messages: ReportMessage[];
     /** Age of the child */
     childAge?: number;
-    /** Optional incident metadata */
+    /** Your identifier for the conversation the messages come from */
+    conversationId?: string;
+    /** Start and end of the incident, as ISO 8601 timestamps */
+    timestampRange?: [string, string];
+    /**
+     * @deprecated Not accepted by the API and not sent. Use `conversationId`
+     * and `timestampRange`.
+     */
     incident?: {
         /** Incident type/category */
         type?: string;
