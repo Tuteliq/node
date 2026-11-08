@@ -5,6 +5,128 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.0.0] - 2026-11-08
+
+Brings the SDK up to date with the API: new methods and fields, request bugs fixed, and types corrected to what the API returns.
+
+### Breaking changes
+
+Every change below fixes something that never worked against the API, but each can stop existing TypeScript code from compiling, and one changes runtime behaviour:
+
+- **Voice streaming:** `sendAudio()` throws until the session is ready. Audio sent earlier was never read by the server; wait for the ready event before sending.
+- **Action plan:** `'educator'` is no longer an `Audience` value. The API always rejected it with a 400.
+- **Multi-analysis:** `AnalyseMultiInput.detections` is typed as `DetectionName[]` instead of `string[]`.
+- **Incident review:** `batchReviewIncidents` requires `moderator_external_id`, as the API already did. `IncidentStatus` and `IncidentSeverity` list the values the API returns (`reviewed`, `moderate`); `new_risk_level` and `new_risk_category` are typed to the accepted values.
+- **Audit logs:** `AuditLogEntry.details` is a string, which is what the API sends.
+- **Usage summary:** `UsageSummary` has the shape the API returns (`usage`, `quota`). The old fields stay as deprecated optionals but were always `undefined`.
+- **Verification:** session poll timestamps are numbers (epoch milliseconds), and fields the poll never returns are no longer declared. `createVerificationSession` is never retried automatically.
+- **Synthetic media:** results use the API's field names (`semantic_analysis`, `rms_level`, `temporal_consistency.score`); the old names stay as deprecated optionals.
+
+### Added
+
+#### Text detection
+
+- **`detectNickname()`** for `POST /api/v1/safety/nickname`. Reads a display name before it is shown and returns a signal about the name, not a verdict on the person. It carries `recommendation` (`allow`, `allow_and_watch`, `ask_to_rename`, `hold_for_review`), not `recommended_action`, so do not pass it to `strongestAction` or `isActionable`. When `reading_complete` is false nothing was analysed or charged: retry.
+- **Declared setting and participants on `context`.** `sender`, `recipients` (with `relationshipToSender`), `conversationType`, `minorDisclosureCheck` and `authorRole` (distress signals), translated to the API's snake_case keys. `ConversationType` and `CONVERSATION_TYPES` are exported, and `default_conversation_type` is typed on the detection settings.
+- **`attestation` and `messageId`** on `detectBullying`, `detectGrooming`, `detectUnsafe` and the unified detectors; **`newConversation`** on `detectUnsafe`; **`includeRelationshipFrame`** on `detectGrooming`.
+- **Result fields the API returns.** Signed `attestation`, `conversation_type_in_effect` and its source, `participants_applied`, `minor_disclosure`, `speaker_role`/`speaker_stance`, `bullying_reported`, grooming `analysis_status` and `relationship_frame`, unsafe `third_party_concern`, and the coercive-control `disclosure_capped` outcome. Result adjustment fields are now typed (`ResultAdjustments`). The ten unified detectors return per-endpoint result types that extend `DetectionResult`.
+- **`analyseMulti` summary.** `analysis_status` (with `recommended_action` and `failed_endpoints` on a partial run), `highest_risk.close_calls`, `skipped_endpoints`, `total_credits_used`, and top-level `support`. `results` is typed as `MultiDetectionResult[]`, and `flagProfanity`/`flagRiskTerms` are accepted.
+- **`Detection`** gains `DISTRESS_SIGNALS`, `TFGBV` and `SYNTHETIC_CONTENT`, and is exported from the package root. `BatchResultItem.error_code` and `MessageAnalysis.unsupported_flags` are typed.
+
+#### Media
+
+- **Video on the voice stream:** `enableVideo` and `frameIntervalSeconds` in `VoiceStreamConfig`, `sendVideoFrame()` on the session, the `frame_analysis` event with `onFrameAnalysis`, `visual` alerts, `video_frames_analyzed` on the session summary, `'all'` in `analysisTypes`, and `context.childAge`.
+- **`verifyImageMatch()`** (`POST /verify-image-match`): face match, age estimate, explicit-content and synthetic-image checks on one image in one call. Image bytes are base64-encoded for you.
+- **`getSafetyClassification()`** (`GET /safety-classification`): the account's daily safety classification. An account with no classification yet answers `{ exists: false }`, never a zero score.
+- `flagRiskTerms` on `analyzeImage` and `analyzeVideo`, with `risk_terms` on their results; `analysisType` and `maxFrames` on `analyzeVideo`.
+- `analyzeDocument` accepts PNG, JPEG and WebP images as one-page documents, and `splitBySender` for messaging screenshots.
+- `language` and `language_status` on `VoiceAnalysisResult`.
+- `fileId` on synthetic image, audio and video inputs; `screenshot_detection` (`is_screenshot`, `confidence`), `metadata` and `file_id` on synthetic image results; `metadata` and `file_id` on synthetic audio results; `drift_signature`, `forensic_signals`, `language_status`, `metadata` and `file_id` on synthetic video results. These types follow the published response shape for the synthetic media endpoints.
+
+#### Verification and webhooks
+
+- `getVerification(id)` retrieves a past verification, including its age.
+- `getVerificationConfig({ country, region })` returns which check a user in a market gets under your API key, and the age threshold.
+- `chip_policy` on `createVerificationSession` (`optional`, `required`, `instead_of_photo`), returned on the session and the poll. New `ChipPolicy`, `VerificationCheck` and `DocumentEvidence` enums.
+- Session poll fields `verification_mode`, `document_evidence`, `step_progress`, `chip_policy`, `capture`, `result.age_range`, `result.document_evidence`, and the full set of extracted document fields.
+- `VerificationSessionStatus.DOCUMENT_REQUIRED`.
+- `VerificationLimitError` (402) with `limitDetails` when the monthly verification allowance is used up.
+- `WebhookEventType` values `verification.completed`, `minor.detected`, `csam.detected`, `csam.critical`.
+- Typed webhook deliveries: `WebhookPayload`, `WebhookEventData`, `VerificationWebhookData`.
+- `verifyWebhookSignature(rawBody, header, secret, options)` for the `X-Tuteliq-Signature-V2` header, with a timestamp tolerance window and constant-time comparison.
+- Verification error codes in `ErrorCode`.
+
+#### Account and platform
+
+- `getDsaTransparencyReport({ from, to, format? })`: DSA transparency report data for a reporting period, as a typed JSON object or, with `format: 'csv'`, as CSV text.
+- `getStatus()`, `ping()` and `pingComponent(component)`: public health endpoints. A 503 is returned as a typed answer, not thrown, and never retried.
+- `getFleet()` and `getFleetDevice(deviceId)`: device attestation reads for the org behind the API key.
+- `getApiKeyQuota()`: active API keys, the tier maximum and whether another key can be created.
+- `getUsageSummary(date?)` accepts a date (YYYY-MM-DD).
+- `UsageMonthlyResult.verification`: the period's verification allowance on enterprise verification plans.
+- Incident rows carry `recommended_actions`, `policy_action`, `recommended_status`, `escalation_capped`, `escalation_capped_reason`, `speaker_stance`, `action_capped`, `action_capped_reason` and `is_test`.
+- Audit receipt payloads carry `harm_descriptor` and `external_ref`; `moderator_review.action` includes `resolve` and `reopen`.
+- `IncidentCategory` union; the `RiskCategory` and `IncidentStatus` enums list every value the API uses.
+- `ConsentRecord.ip_hash`; `AuditLogEntry.ip_hash`, `user_agent` and `_encrypted`; `AccountExportResult.incompleteCollections` and `unverifiedCollections`.
+
+### Fixed
+
+#### Text detection
+
+- **`analyzeEmotions` and batch emotions items now send the declared age as `context.age_group`.** They sent `ageGroup`, which the route does not read, so the age never arrived. `incident_moderation_enabled` is now forwarded too.
+- **`getActionPlan`** rejects `audience: 'educator'` with a `ValidationError` instead of a 400 from the API (`Audience` no longer lists it), and returns `approx_reading_level`, copied to `reading_level` for existing callers.
+- **`generateReport`** sends `conversationId` and `timestampRange` in `meta`, and no longer sends `incident`, which the API dropped.
+- **`analyseMulti`** forwards `flagProfanity`/`flagRiskTerms` and no longer sends `verdictOnly`, which the route does not accept.
+- **`batch`** keeps the per-item `error_code` the API returns.
+
+#### Media
+
+- **Voice streaming connects again.** `voiceStream()` dialled a URL the API does not serve, so sessions could not connect. It now connects to `/api/v1/safety/voice/stream`. The initial config is sent once the session is ready (it was sent before the server read messages, so it never applied), and context goes out in the wire format: `ageGroup` now takes effect and `platform` is attributed like every other call. `sendAudio()` now throws until the session is ready, instead of sending audio the server would not read.
+- **`incident_moderation_enabled` is sent on `analyzeVoice`, `analyzeImage`, `analyzeVideo` and `analyzeDocument`.** It was accepted on the input types but never sent, so the per-call override had no effect.
+- **Synthetic image, audio and video results now match what the API returns.** Image analysis is in `semantic_analysis` (`vision` was always `undefined`); `AudioStats` holds the published measurements (`rms_level`, `rms_peak`, `dc_offset`, `dynamic_range`, `silence_ratio`, `peak_count`, `flat_factor`); video `temporal_consistency` uses `score`, `identity_consistency`, `landmark_stability` and `anomalous_pairs`. Transcription `segments` is optional on these results, since it is absent when there is no speech and on video.
+- **`DocumentAnalysisResult.file_id` is always present** (your reference, or the uploaded filename).
+
+#### Verification and webhooks
+
+- `DocumentType.ID_CARD` sent `id_card`, which the API rejects; national ID cards now send `national_id` (`DocumentType.NATIONAL_ID`).
+- `createVerificationSession` is no longer retried automatically, so a lost response cannot create a duplicate session.
+- `createVerificationSession` no longer drops `chip_policy` from the response.
+- Session poll types match the served response: timestamps are epoch milliseconds, and fields the poll never returns are no longer typed as present. Documented that extracted document fields are released only on the first authenticated poll after completion.
+- `getAgeVerification` and `getIdentityVerification` result types no longer declare fields those routes never return.
+- `Webhook.last_triggered_at` and `last_error` are typed as nullable.
+
+#### Account and platform
+
+- `UsageSummary` matches the response (`apiKeyId`, `tier`, `date`, `usage`, `quota`); every previously declared field read `undefined`.
+- `PricingPlan.isPopular` / `ctaLink`, `ConsentRecord.userId` and `AuditLogEntry.userId` use the API's field names. `AuditLogEntry.details` is typed as a string.
+- `IncidentStatus` is `new | reviewed | escalated | resolved | dismissed` and `IncidentSeverity` is `low | moderate | high | critical`; list filters still accept `medium` and `reviewing`.
+- Review inputs type `new_risk_level` and `new_risk_category` with the values the API accepts. `batchReviewIncidents` requires `moderator_external_id`, and both review methods check for it before sending.
+
+### Deprecated
+
+#### Text detection
+
+- Fields the API never returns or accepts, kept for compatibility: `UnsafeResult.risk_level`, `DetectionResult.trajectory_risk`/`trajectory`/`severity_series`, `SupportData.response_guides`/`language`, `SupportResponseGuide.childSpecificActions`/`confidential`/`language`, `AnalyseMultiResult.credits_used` (use `summary.total_credits_used`), `AnalyseMultiInput.verdictOnly`, `BatchAnalyzeInput.continueOnError`, `GenerateReportInput.incident`, and `ActionPlanResult.reading_level` (use `approx_reading_level`).
+
+#### Media
+
+- `bypassCache` on synthetic-content inputs: a no-op, as there is no verdict cache. The SDK no longer sends it.
+- Fields the API never returns, kept for compatibility: `SyntheticImageResult.vision`, `AudioStats.rms_mean`, the old `TemporalConsistency` field names and `signals`, `LipSyncResult.signals`, `action_detail` on synthetic text, image, audio and video results, and `action_detail` / `detected_language` on document page results.
+- `incident_moderation_enabled` on synthetic image, audio and video inputs (not read by those endpoints), and voice stream `context.relationship` (never read).
+- `getSyntheticProfile()`: the note now says the route was removed from the API (not that it never shipped).
+
+#### Verification and webhooks
+
+- `DocumentType.ID_CARD`: use `DocumentType.NATIONAL_ID` (same value).
+- `redirect_url`, `external_id`, `customer_id` and `metadata` on `createVerificationSession`: the API does not accept them and the SDK no longer sends them. Set the redirect URL in the dashboard.
+- `VerificationSessionStatus.CANCELLED`: never returned; a cancelled session reads as `expired`.
+
+#### Account and platform
+
+- `UsageSummary.messages_used`, `message_limit`, `purchased_credits`, `total_available`, `usage_percentage`, `period_start`, `period_end`, `days_remaining`: never sent by this endpoint; use `getUsageMonthly()`.
+- `PricingPlan.is_popular` and `cta_link`: use `isPopular` and `ctaLink`.
+- `ConsentRecord.user_id` and `AuditLogEntry.user_id`: use `userId`.
+
 ## [2.33.0] - 2026-09-21
 
 ### Fixed
