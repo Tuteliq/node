@@ -244,7 +244,7 @@ describe('Tuteliq: account and platform', () => {
                 escalation_capped_reason: null,
                 speaker_stance: 'describing_third_party',
                 action_capped: true,
-                action_capped_reason: 'third_party_report',
+                action_capped_reason: 'example',
                 is_test: true,
                 external_id: null,
                 customer_id: null,

@@ -93,13 +93,15 @@ export interface IncidentSummaryRow {
     policy_action: Record<string, unknown> | null;
     /** Advisory next status for a moderator. Never applied automatically. */
     recommended_status: IncidentStatus | null;
-    /** True when urgency was held back pending independent corroboration. Null when no cap applied. */
+    /** Adjustment the API applied to this result, reported for transparency. Descriptive only. Null when it did not apply. */
     escalation_capped: boolean | null;
+    /** Human-readable explanation of the adjustment. Null when it did not apply. */
     escalation_capped_reason: string | null;
     /** Whether the speaker is doing what was detected or reporting it. Null when not assessed. */
     speaker_stance: SpeakerStance | null;
-    /** True when the action was lowered because the speaker is reporting a third party. Null when no cap applied. */
+    /** Adjustment the API applied to this result, reported for transparency. Descriptive only. Null when it did not apply. */
     action_capped: boolean | null;
+    /** Human-readable explanation of the adjustment. Null when it did not apply. */
     action_capped_reason: string | null;
     /** True when the incident came from a non-production API key (test traffic). */
     is_test: boolean | null;
