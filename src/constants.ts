@@ -47,6 +47,17 @@ export enum RiskCategory {
     UNSAFE = 'unsafe',
     SELF_HARM = 'self_harm',
     OTHER = 'other',
+    SOCIAL_ENGINEERING = 'social_engineering',
+    APP_FRAUD = 'app_fraud',
+    ROMANCE_SCAM = 'romance_scam',
+    MULE_RECRUITMENT = 'mule_recruitment',
+    GAMBLING_HARM = 'gambling_harm',
+    COERCIVE_CONTROL = 'coercive_control',
+    VULNERABILITY_EXPLOITATION = 'vulnerability_exploitation',
+    RADICALISATION = 'radicalisation',
+    DISTRESS_SIGNALS = 'distress_signals',
+    TFGBV = 'tfgbv',
+    SYNTHETIC_CONTENT = 'synthetic_content',
 }
 
 /**
@@ -88,7 +99,9 @@ export enum EmotionTrend {
 export enum IncidentStatus {
     NEW = 'new',
     REVIEWED = 'reviewed',
+    ESCALATED = 'escalated',
     RESOLVED = 'resolved',
+    DISMISSED = 'dismissed',
 }
 
 /**

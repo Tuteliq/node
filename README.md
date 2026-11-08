@@ -1336,10 +1336,19 @@ const result = await tuteliq.rectifyData({
 Get audit trail of all data operations.
 
 ```typescript
-const logs = await tuteliq.getAuditLogs({ limit: 50 })
-logs.entries.forEach(entry => {
-  console.log(entry.action, entry.timestamp, entry.details)
+const { audit_logs } = await tuteliq.getAuditLogs({ limit: 50 })
+audit_logs.forEach(entry => {
+  console.log(entry.action, entry.created_at)
 })
+```
+
+#### `getApiKeyQuota()`
+
+Get active API keys, the tier maximum and whether another key can be created.
+
+```typescript
+const quota = await tuteliq.getApiKeyQuota()
+console.log(quota.active_keys, '/', quota.max_keys, quota.can_create)
 ```
 
 ---
@@ -1449,15 +1458,15 @@ The `credits_used` field is included in every response body. Credit balance is a
 
 ### Usage API Methods
 
-#### `getUsageSummary()`
+#### `getUsageSummary(date?)`
 
-Get usage summary for the current billing period.
+Get one day's request counts for this API key (defaults to today), with the tier's limits. For billing-period usage, use `getUsageMonthly()`.
 
 ```typescript
-const summary = await tuteliq.getUsageSummary()
-console.log('Used:', summary.messages_used)
-console.log('Limit:', summary.message_limit)
-console.log('Percent:', summary.usage_percentage)
+const summary = await tuteliq.getUsageSummary('2026-11-07')
+console.log('Requests:', summary.usage.totalRequests)
+console.log('Errors:', summary.usage.errorRequests)
+console.log('Remaining today:', summary.quota.remainingToday) // -1 = no daily limit
 ```
 
 #### `getQuota()`
@@ -1502,6 +1511,46 @@ console.log('Days left:', monthly.billing.days_remaining)
 if (monthly.recommendations?.should_upgrade) {
   console.log('Consider upgrading to:', monthly.recommendations.suggested_tier)
 }
+```
+
+On an enterprise verification plan, `monthly.verification` carries the period's verification allowance, and `usage` counts verifications.
+
+### DSA Transparency Report
+
+#### `getDsaTransparencyReport({ from, to, format? })`
+
+Your moderation numbers for a reporting period (at most 366 days), laid out on the DSA transparency-report template. Aggregates only; test traffic is excluded. Included in current paid plans.
+
+```typescript
+const report = await tuteliq.getDsaTransparencyReport({ from: '2026-01-01', to: '2026-06-30' })
+console.log(report.scope.incidents_counted, report.sections.length)
+
+// CSV text, one row per template indicator and category metric
+const csv = await tuteliq.getDsaTransparencyReport({ from: '2026-01-01', to: '2026-06-30', format: 'csv' })
+```
+
+### Agent Fleet
+
+#### `getFleet()` / `getFleetDevice(deviceId)`
+
+Latest device attestations for the org behind the API key, with a compliance summary.
+
+```typescript
+const { devices, summary } = await tuteliq.getFleet()
+console.log(`${summary.compliance_pct}% compliant`)
+const { device } = await tuteliq.getFleetDevice(devices[0].device_id)
+```
+
+### Status
+
+#### `getStatus()` / `ping()` / `pingComponent(component)`
+
+Public health endpoints. A 503 from them is an answer, not an error: these methods return it typed and never retry.
+
+```typescript
+const status = await tuteliq.getStatus()          // status: 'operational' | 'degraded' | 'major_outage'
+const pong = await tuteliq.ping()                 // { status: 'ok', timestamp }
+const db = await tuteliq.pingComponent('database') // { healthy: false, ... } when failing
 ```
 
 ---
