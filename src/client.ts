@@ -93,7 +93,10 @@ import {
     VerificationSession,
     VerificationSessionResult,
     VerificationRetrieveResult,
+    AgeVerificationRetrieveResult,
     IdentityRetrieveResult,
+    GetVerificationConfigInput,
+    VerificationConfig,
     // Synthetic content types
     DetectSyntheticTextInput,
     SyntheticTextResult,
@@ -155,6 +158,7 @@ import {
     NetworkError,
     QuotaExceededError,
     TierAccessError,
+    VerificationLimitError,
 } from './errors.js';
 
 import { withRetry } from './utils/retry.js';
@@ -561,6 +565,11 @@ export class Tuteliq {
                 throw new ValidationError(message, details, { code, suggestion, links, requestId });
             case 401:
                 throw new AuthenticationError(message, { code, suggestion, links, requestId });
+            case 402:
+                if (code === 'VERIFY_11014') {
+                    throw new VerificationLimitError(message, { code, suggestion, links, requestId, details: details as never });
+                }
+                throw new TuteliqError(message, status, details, { code, suggestion, links, requestId });
             case 403:
                 throw new TierAccessError(message, { code, suggestion, links, requestId, details: details as never });
             case 404:
@@ -2660,6 +2669,13 @@ export class Tuteliq {
      * Returns a session with a `url` to open in a new tab or web view.
      * The web UI handles all document capture, liveness checks, and submission.
      *
+     * Never retried automatically: a retry after a lost response would create
+     * a second session (and, on plans with a verification allowance, take a
+     * second unit). On a timeout or network error, create a new session
+     * yourself if you need one.
+     *
+     * @throws {VerificationLimitError} When the monthly verification allowance is used up.
+     *
      * @example
      * ```typescript
      * const session = await tuteliq.createVerificationSession({
@@ -2678,12 +2694,15 @@ export class Tuteliq {
             throw new ValidationError('Verification mode must be "age" or "identity"');
         }
 
-        const response = await this.requestWithRetry<{
+        // `request`, not `requestWithRetry`: see the doc comment. Only the
+        // fields the API accepts are sent.
+        const response = await this.request<{
             session_id: string;
             mobile_url: string;
             expires_at: number;
             mode: VerificationSession['mode'];
-            verification_mode?: string;
+            verification_mode?: VerificationSession['verification_mode'];
+            chip_policy?: VerificationSession['chip_policy'];
             recommended_image_width?: number;
         }>(
             'POST',
@@ -2691,10 +2710,7 @@ export class Tuteliq {
             {
                 mode: input.mode,
                 ...(input.document_type && { document_type: input.document_type }),
-                ...(input.redirect_url && { redirect_url: input.redirect_url }),
-                ...(input.external_id && { external_id: input.external_id }),
-                ...(input.customer_id && { customer_id: input.customer_id }),
-                ...(input.metadata && { metadata: input.metadata }),
+                ...(input.chip_policy && { chip_policy: input.chip_policy }),
             }
         );
 
@@ -2708,6 +2724,7 @@ export class Tuteliq {
             expires_at: response.expires_at,
             mode: response.mode,
             ...(response.verification_mode !== undefined && { verification_mode: response.verification_mode }),
+            ...(response.chip_policy !== undefined && { chip_policy: response.chip_policy }),
             ...(response.recommended_image_width !== undefined && { recommended_image_width: response.recommended_image_width }),
         };
     }
@@ -2717,14 +2734,19 @@ export class Tuteliq {
      *
      * Poll this endpoint to check when verification is complete.
      *
+     * The extracted document fields, `date_of_birth`, `failure_reasons` and
+     * `capture` are released only on the first poll after the session
+     * completes or fails; later polls return the decision alone. Store them
+     * on that first read, or use the `verification.completed` webhook.
+     *
      * @example
      * ```typescript
      * const status = await tuteliq.getVerificationSession('sess_abc123')
      *
-     * if (status.status === 'completed') {
-     *   if (status.age_result) {
-     *     console.log('Result:', status.result)
-     *   }
+     * if (status.status === 'completed' && status.result) {
+     *   console.log('Decision:', status.result.status, 'Minor:', status.result.is_minor)
+     *   // Present on this first read only:
+     *   console.log('Document:', status.result.document)
      * }
      * ```
      */
@@ -2768,12 +2790,12 @@ export class Tuteliq {
      * console.log('Is minor:', result.is_minor)
      * ```
      */
-    async getAgeVerification(verificationId: string): Promise<VerificationRetrieveResult> {
+    async getAgeVerification(verificationId: string): Promise<AgeVerificationRetrieveResult> {
         if (!verificationId) {
             throw new ValidationError('Verification ID is required');
         }
 
-        return this.requestWithRetry<VerificationRetrieveResult>(
+        return this.requestWithRetry<AgeVerificationRetrieveResult>(
             'GET',
             `/api/v1/verify/age/${verificationId}`
         );
@@ -2786,7 +2808,7 @@ export class Tuteliq {
      * ```typescript
      * const result = await tuteliq.getIdentityVerification('vrf_abc123')
      * console.log('Status:', result.status)
-     * console.log('Name:', result.full_name)
+     * console.log('Face matched:', result.face_matched)
      * ```
      */
     async getIdentityVerification(verificationId: string): Promise<IdentityRetrieveResult> {
@@ -2797,6 +2819,48 @@ export class Tuteliq {
         return this.requestWithRetry<IdentityRetrieveResult>(
             'GET',
             `/api/v1/verify/identity/${verificationId}`
+        );
+    }
+
+    /**
+     * Retrieve a past verification result by ID, including its age.
+     *
+     * @example
+     * ```typescript
+     * const result = await tuteliq.getVerification('vrf_abc123')
+     * console.log('Age:', result.age, 'Minor:', result.is_minor)
+     * ```
+     */
+    async getVerification(verificationId: string): Promise<VerificationRetrieveResult> {
+        if (!verificationId) {
+            throw new ValidationError('Verification ID is required');
+        }
+
+        return this.requestWithRetry<VerificationRetrieveResult>(
+            'GET',
+            `/api/v1/verify/${encodeURIComponent(verificationId)}`
+        );
+    }
+
+    /**
+     * Get the age verification settings that apply to a market under this
+     * API key: which check a user there will get and the age threshold.
+     *
+     * @example
+     * ```typescript
+     * const config = await tuteliq.getVerificationConfig({ country: 'US', region: 'CA' })
+     * console.log(config.mode, config.age_threshold)
+     * ```
+     */
+    async getVerificationConfig(input: GetVerificationConfigInput = {}): Promise<VerificationConfig> {
+        const params = new URLSearchParams();
+        if (input.country) params.set('country', input.country);
+        if (input.region) params.set('region', input.region);
+        const query = params.toString();
+
+        return this.requestWithRetry<VerificationConfig>(
+            'GET',
+            `/api/v1/verify/age/config${query ? `?${query}` : ''}`
         );
     }
 

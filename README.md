@@ -885,8 +885,10 @@ Session-based age and identity verification. The SDK creates a verification sess
 
 Creates a verification session and returns a URL for the user to complete the flow. Costs **10 credits** (age) or **15 credits** (identity) when the user completes the verification.
 
+Session creation is never retried automatically: a retry after a lost response would create a second session. If the call times out, create a new session yourself.
+
 ```typescript
-import { Tuteliq, VerificationMode, DocumentType } from '@tuteliq/sdk'
+import { Tuteliq, VerificationMode, DocumentType, ChipPolicy } from '@tuteliq/sdk'
 
 const tuteliq = new Tuteliq(process.env.TUTELIQ_API_KEY)
 
@@ -895,115 +897,130 @@ const session = await tuteliq.createVerificationSession({
   mode: VerificationMode.AGE,
 })
 
-console.log(session.session_id)  // 'abc123...'
-console.log(session.url)         // 'https://verify.tuteliq.ai/age/?session=...&token=...'
-console.log(session.expires_at)  // '2026-03-05T12:00:00Z'
+console.log(session.session_id)         // 'abc123...'
+console.log(session.url)                // 'https://verify.tuteliq.ai/age/?session=...&token=...'
+console.log(session.expires_at)         // 1772712000000 (epoch ms)
+console.log(session.verification_mode)  // 'full' | 'liveness_only'
 
 // Identity verification with options
 const session = await tuteliq.createVerificationSession({
   mode: VerificationMode.IDENTITY,
   document_type: DocumentType.PASSPORT,     // Optional hint for the web UI
-  redirect_url: 'https://example.com/done', // Optional redirect after completion
-  external_id: 'user_123',                  // Optional tracking
-  customer_id: 'cust_456',                  // Optional multi-tenant ID
-  metadata: { source: 'onboarding' },       // Optional custom data
+  chip_policy: ChipPolicy.INSTEAD_OF_PHOTO, // Optional, default 'optional'
 })
+```
+
+`chip_policy` sets how a passport or ID card chip read counts as document evidence: `optional` (the document photo is required and a chip read adds to it), `required` (the photo and a valid chip read are both required) or `instead_of_photo` (a chip read that proves itself genuine replaces the photo; otherwise the user is asked for a photo).
+
+`redirect_url`, `external_id`, `customer_id` and `metadata` are deprecated: the API does not accept them and the SDK no longer sends them. Set the redirect URL in your dashboard verification settings.
+
+If your plan's monthly verification allowance is used up, the call throws a `VerificationLimitError` and no session is created:
+
+```typescript
+import { VerificationLimitError } from '@tuteliq/sdk'
+
+try {
+  await tuteliq.createVerificationSession({ mode: VerificationMode.AGE })
+} catch (error) {
+  if (error instanceof VerificationLimitError) {
+    console.log(error.limitDetails?.next_period_start)  // when the allowance renews
+    console.log(error.limitDetails?.buy_credits_url)    // where to buy more
+  }
+}
 ```
 
 #### `getVerificationSession(sessionId)`
 
-Polls the status of a verification session. When `status` is `completed`, the result contains full document intelligence — MRZ validation, barcode reading, document authenticity, face matching, and liveness.
+Polls the status of a verification session.
+
+**The extracted document fields, `date_of_birth`, `failure_reasons` and `capture` are released once**: only the first poll after the session reaches `completed` or `failed` carries them. Later polls return the decision alone. Store them on that first read, or subscribe to the `verification.completed` webhook, which pushes the same outcome as it is produced.
 
 ```typescript
 import { VerificationSessionStatus } from '@tuteliq/sdk'
 
 const session = await tuteliq.getVerificationSession('abc123...')
 
-console.log(session.status)  // VerificationSessionStatus.COMPLETED
-console.log(session.mode)    // VerificationMode.AGE
+console.log(session.status)         // VerificationSessionStatus.COMPLETED
+console.log(session.step_progress)  // e.g. 'processing', for progress UI
+console.log(session.created_at)     // epoch ms
 
 if (session.status === VerificationSessionStatus.COMPLETED && session.result) {
-  // Core result
-  console.log(session.result.status)            // 'verified' | 'failed' | 'needs_review'
-  console.log(session.result.age)               // 22
-  console.log(session.result.date_of_birth)     // '1990-01-15'
-  console.log(session.result.is_minor)          // false
-  console.log(session.result.failure_reasons)   // []
+  // The decision (every poll)
+  console.log(session.result.status)        // 'verified' | 'failed' | 'needs_review'
+  console.log(session.result.age)           // 34
+  console.log(session.result.age_range)     // { low, high } when the age came from the selfie alone
+  console.log(session.result.is_minor)      // false
+  console.log(session.result.face_match)    // { matched: true, confidence: 0.97 }
+  console.log(session.result.liveness)      // { valid: true }
+  console.log(session.verification_mode)    // 'full' (document + live face) | 'liveness_only'
+  console.log(session.document_evidence)    // 'photo' | 'chip' | 'photo_and_chip'
 
-  // Document extraction and validation
-  console.log(session.result.document.ocr_confidence)       // 92
-  console.log(session.result.document.name_extracted)        // 'John Doe'
-  console.log(session.result.document.document_number)       // 'AB1234567'
-  console.log(session.result.document.document_number_valid) // true (45-country validation)
-  console.log(session.result.document.country_code)          // 'US'
-  console.log(session.result.document.expired)               // false
-
-  // MRZ validation (passports, ID cards with MRZ)
-  if (session.result.document.mrz_valid !== null) {
-    console.log(session.result.document.mrz_valid)              // true
-    console.log(session.result.document.mrz_fields?.surname)    // 'DOE'
-    console.log(session.result.document.mrz_fields?.given_names) // 'JOHN'
-    console.log(session.result.document.mrz_fields?.nationality) // 'USA'
-  }
-
-  // PDF417 barcode (US/CA driver's licenses)
-  if (session.result.barcode) {
-    console.log(session.result.barcode.format)              // 'PDF417'
-    console.log(session.result.barcode.has_aamva)           // true
-    console.log(session.result.barcode.fields?.first_name)  // 'JOHN'
-    console.log(session.result.barcode.fields?.state)       // 'CA'
-  }
-
-  // AI-powered document authenticity
-  if (session.result.document_authenticity) {
-    console.log(session.result.document_authenticity.is_authentic)              // true
-    console.log(session.result.document_authenticity.confidence)                // 0.92
-    console.log(session.result.document_authenticity.security_features_visible) // ['hologram', 'microprint']
-    console.log(session.result.document_authenticity.anomalies)                // []
-    console.log(session.result.document_authenticity.recapture_detected)       // false
-  }
-
-  // Face matching
-  console.log(session.result.face_match)  // { matched: true, distance: 0.3, confidence: 0.95 }
-
-  // Liveness
-  console.log(session.result.liveness)    // { valid: true }
+  // Released once, on the first poll after completion
+  console.log(session.result.date_of_birth)                // '1992-04-01'
+  console.log(session.result.failure_reasons)              // null or string[]
+  console.log(session.result.document?.first_name)         // 'Alex'
+  console.log(session.result.document?.last_name)          // 'Example'
+  console.log(session.result.document?.document_number)    // 'X0000000'
+  console.log(session.result.document?.expiration_date)    // '2031-01-01'
+  console.log(session.result.document?.chip_verified)      // true when the data came from the chip
 }
 ```
 
+`status` can also be `document_required`: the session is waiting for the user to add a document photo before it can finish.
+
 #### `cancelVerificationSession(sessionId)`
 
-Cancels an active verification session. No credits are consumed.
+Cancels an active verification session. No credits are consumed. A cancelled session reads as `expired`.
 
 ```typescript
 await tuteliq.cancelVerificationSession('abc123...')
 ```
 
+#### `getVerificationConfig({ country, region })`
+
+Returns the age verification settings that apply to a market under your API key: which check a user there will get, and the age threshold.
+
+```typescript
+const config = await tuteliq.getVerificationConfig({ country: 'US', region: 'CA' })
+
+console.log(config.mode)           // 'full' | 'liveness_only'
+console.log(config.age_threshold)  // 18
+```
+
+#### `getVerification(verificationId)`
+
+Retrieves a past verification result, including its age.
+
+```typescript
+const result = await tuteliq.getVerification('vrf_001')
+
+console.log(result.status)      // 'verified'
+console.log(result.age)         // 22
+console.log(result.is_minor)    // false
+```
+
 #### `getAgeVerification(verificationId)`
 
-Retrieves a past age verification result by its verification ID.
+Retrieves a past age verification result by its verification ID. It carries no age and no personal data.
 
 ```typescript
 const result = await tuteliq.getAgeVerification('vrf_001')
 
 console.log(result.status)       // 'verified'
-console.log(result.age)          // 22
 console.log(result.is_minor)     // false
 console.log(result.created_at)   // '2026-03-05T11:00:00Z'
 ```
 
 #### `getIdentityVerification(verificationId)`
 
-Retrieves a past identity verification result by its verification ID.
+Retrieves a past identity verification result by its verification ID. It carries no personal data.
 
 ```typescript
 const result = await tuteliq.getIdentityVerification('vrf_002')
 
-console.log(result.status)         // 'verified'
-console.log(result.full_name)      // 'John Doe'
-console.log(result.date_of_birth)  // '1990-01-15'
-console.log(result.document_type)  // 'passport'
-console.log(result.country_code)   // 'US'
+console.log(result.status)          // 'verified'
+console.log(result.face_matched)    // true
+console.log(result.liveness_valid)  // true
 ```
 
 #### Verification Enums
@@ -1013,9 +1030,12 @@ The SDK provides enums to avoid hardcoded strings:
 ```typescript
 import {
   VerificationMode,           // AGE, IDENTITY
-  DocumentType,               // PASSPORT, ID_CARD, DRIVERS_LICENSE
+  DocumentType,               // PASSPORT, NATIONAL_ID, DRIVERS_LICENSE (ID_CARD is a deprecated alias of NATIONAL_ID)
+  ChipPolicy,                 // OPTIONAL, REQUIRED, INSTEAD_OF_PHOTO
+  VerificationCheck,          // FULL, LIVENESS_ONLY
+  DocumentEvidence,           // PHOTO, CHIP, PHOTO_AND_CHIP
   VerificationStatus,         // VERIFIED, FAILED, NEEDS_REVIEW
-  VerificationSessionStatus,  // PENDING, IN_PROGRESS, COMPLETED, FAILED, EXPIRED, CANCELLED
+  VerificationSessionStatus,  // PENDING, IN_PROGRESS, DOCUMENT_REQUIRED, COMPLETED, FAILED, EXPIRED
 } from '@tuteliq/sdk'
 ```
 
@@ -1117,6 +1137,33 @@ Regenerate the signing secret. The old secret is immediately invalidated.
 const { secret } = await tuteliq.regenerateWebhookSecret('webhook-123')
 // Update your verification logic with the new secret
 ```
+
+#### Verifying deliveries: `verifyWebhookSignature(rawBody, header, secret, options?)`
+
+Each delivery is signed with your webhook secret in the `X-Tuteliq-Signature-V2` header. Verify it over the raw request body, before parsing JSON. The helper checks the signature in constant time and rejects deliveries older (or further ahead) than `toleranceSeconds` (default 300). Retries of a delivery reuse its `id`, so also drop any `id` you have already processed.
+
+```typescript
+import express from 'express'
+import { verifyWebhookSignature, WebhookEventType, type WebhookPayload } from '@tuteliq/sdk'
+
+app.post('/webhooks/tuteliq', express.raw({ type: 'application/json' }), async (req, res) => {
+  const ok = await verifyWebhookSignature(
+    req.body,                              // raw bytes
+    req.get('X-Tuteliq-Signature-V2'),
+    process.env.TUTELIQ_WEBHOOK_SECRET!,
+  )
+  if (!ok) return res.status(400).end()
+
+  const payload: WebhookPayload = JSON.parse(req.body.toString('utf8'))
+  if (payload.event === WebhookEventType.VERIFICATION_COMPLETED && payload.data.verification) {
+    // Session outcome, including extracted document fields: treat as personal data
+    console.log(payload.data.verification.status, payload.data.verification.is_minor)
+  }
+  res.status(200).end()
+})
+```
+
+Event types include `verification.completed` and `minor.detected` alongside the detection events. `data.verification` is present on `verification.completed` from a verification session.
 
 ---
 

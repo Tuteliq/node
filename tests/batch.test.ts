@@ -322,7 +322,7 @@ describe('Tuteliq.createVerificationSession', () => {
                 mobile_url: 'https://verify.tuteliq.ai/age/?session=sess-1&token=t',
                 expires_at: 1787253193747,
                 mode: 'age',
-                verification_mode: 'document_and_selfie',
+                verification_mode: 'full',
                 recommended_image_width: 3264,
             }),
         );
@@ -331,6 +331,6 @@ describe('Tuteliq.createVerificationSession', () => {
 
         expect(session.url).toContain('/age/?session=sess-1');
         expect(session.recommended_image_width).toBe(3264);
-        expect(session.verification_mode).toBe('document_and_selfie');
+        expect(session.verification_mode).toBe('full');
     });
 });

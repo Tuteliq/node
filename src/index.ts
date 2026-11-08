@@ -19,6 +19,9 @@ export {
     DocumentType,
     VerificationStatus,
     VerificationSessionStatus,
+    ChipPolicy,
+    VerificationCheck,
+    DocumentEvidence,
 } from './constants.js';
 
 // Error exports
@@ -33,8 +36,13 @@ export {
     NetworkError,
     QuotaExceededError,
     TierAccessError,
+    VerificationLimitError,
 } from './errors.js';
-export type { ErrorMeta, SubscriptionErrorDetails } from './errors.js';
+export type { ErrorMeta, SubscriptionErrorDetails, VerificationLimitDetails } from './errors.js';
+
+// Webhook signature verification
+export { verifyWebhookSignature } from './webhooks.js';
+export type { VerifyWebhookSignatureOptions } from './webhooks.js';
 
 // Type exports
 export type {
@@ -127,6 +135,9 @@ export type {
     UpdateWebhookResult,
     DeleteWebhookResult,
     TestWebhookResult,
+    WebhookPayload,
+    WebhookEventData,
+    VerificationWebhookData,
     RegenerateSecretResult,
 
     // Pricing types
@@ -204,7 +215,13 @@ export type {
     AgeVerificationResult,
     IdentityVerificationResult,
     VerificationRetrieveResult,
+    AgeVerificationRetrieveResult,
     IdentityRetrieveResult,
+    GetVerificationConfigInput,
+    VerificationConfig,
+    CaptureSummary,
+    AgeRange,
+    NationalIdResult,
 
     // Synthetic content types
     SyntheticClassification,
