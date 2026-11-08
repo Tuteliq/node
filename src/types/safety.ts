@@ -414,13 +414,11 @@ export interface BullyingResult extends TextDetectionFields {
      */
     severity_series?: number[];
     /**
-     * True when a coded-term match pushed severity toward critical but this
-     * endpoint's corroboration-cap logic held `recommended_action` below
-     * `immediate_intervention` pending independent confirmation. Absent when
-     * no cap applied.
+     * Adjustment the API applied to this result, reported for transparency.
+     * Descriptive only: route on `recommended_action`.
      */
     escalation_capped?: boolean;
-    /** Human-readable explanation of the cap. Present only when `escalation_capped` is true. */
+    /** Human-readable text; do not branch on it. */
     escalation_capped_reason?: string;
     /**
      * Present only when `flagProfanity` on this request (or the account-level
@@ -756,13 +754,11 @@ export interface UnsafeResult extends TextDetectionFields {
     /** Per-turn severity, oldest first — the evidence behind `trajectory_risk`. */
     severity_series?: number[];
     /**
-     * True when a coded-term match pushed severity toward critical but this
-     * endpoint's corroboration-cap logic held `recommended_action` below
-     * `immediate_intervention` pending independent confirmation. Absent when
-     * no cap applied.
+     * Adjustment the API applied to this result, reported for transparency.
+     * Descriptive only: route on `recommended_action`.
      */
     escalation_capped?: boolean;
-    /** Human-readable explanation of the cap. Present only when `escalation_capped` is true. */
+    /** Human-readable text; do not branch on it. */
     escalation_capped_reason?: string;
     /**
      * Present only when `flagProfanity` on this request (or the account-level

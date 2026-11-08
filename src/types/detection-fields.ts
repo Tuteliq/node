@@ -65,6 +65,7 @@ export interface DetectionAttestation {
     detector: {
         model_id: string;
         model_version: string;
+        /** Version identifier included in the signed attestation. */
         prompt_template_version: string;
         endpoint: string;
     };
