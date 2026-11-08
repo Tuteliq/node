@@ -592,7 +592,7 @@ describe('Tuteliq', () => {
             const mockResponse = {
                 session_id: 'sess_abc123',
                 mobile_url: 'https://verify.tuteliq.ai/age/?session=sess_abc123&token=tok_xyz789',
-                expires_at: '2026-03-05T12:00:00Z',
+                expires_at: 1772712000000,
                 mode: 'age',
             };
 
@@ -617,7 +617,7 @@ describe('Tuteliq', () => {
             const mockResponse = {
                 session_id: 'sess_def456',
                 mobile_url: 'https://verify.tuteliq.ai/identity/?session=sess_def456&token=tok_abc123',
-                expires_at: '2026-03-05T12:00:00Z',
+                expires_at: 1772712000000,
                 mode: 'identity',
             };
 
@@ -638,10 +638,11 @@ describe('Tuteliq', () => {
             const body = JSON.parse(call[1]?.body as string);
             expect(body.mode).toBe(VerificationMode.IDENTITY);
             expect(body.document_type).toBe(DocumentType.PASSPORT);
-            expect(body.redirect_url).toBe('https://example.com/done');
-            expect(body.external_id).toBe('ext_123');
-            expect(body.customer_id).toBe('cust_456');
-            expect(body.metadata).toEqual({ source: 'onboarding' });
+            // The API does not accept these, so they are not sent.
+            expect(body).not.toHaveProperty('redirect_url');
+            expect(body).not.toHaveProperty('external_id');
+            expect(body).not.toHaveProperty('customer_id');
+            expect(body).not.toHaveProperty('metadata');
         });
 
         it('should reject invalid verification mode', async () => {
@@ -697,10 +698,8 @@ describe('Tuteliq', () => {
             const mockResponse = {
                 verification_id: 'vrf_001',
                 status: VerificationStatus.VERIFIED,
-                age: 22,
                 is_minor: false,
                 face_matched: true,
-                face_confidence: 0.95,
                 liveness_valid: true,
                 failure_reasons: [],
                 created_at: '2026-03-05T11:00:00Z',
@@ -726,10 +725,6 @@ describe('Tuteliq', () => {
             const mockResponse = {
                 verification_id: 'vrf_002',
                 status: VerificationStatus.VERIFIED,
-                full_name: 'John Doe',
-                date_of_birth: '1990-01-15',
-                document_type: DocumentType.PASSPORT,
-                country_code: 'US',
                 face_matched: true,
                 face_confidence: 0.92,
                 liveness_valid: true,
@@ -742,7 +737,7 @@ describe('Tuteliq', () => {
             const result = await tuteliq.getIdentityVerification('vrf_002');
 
             expect(result.status).toBe(VerificationStatus.VERIFIED);
-            expect(result.full_name).toBe('John Doe');
+            expect(result.face_matched).toBe(true);
             expect(fetch).toHaveBeenCalledWith(
                 `${API_BASE_URL}/api/v1/verify/identity/vrf_002`,
                 expect.objectContaining({ method: 'GET' })

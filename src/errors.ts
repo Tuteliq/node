@@ -181,3 +181,41 @@ export class TierAccessError extends TuteliqError {
         return this.details as SubscriptionErrorDetails | undefined;
     }
 }
+
+/**
+ * Details returned when the monthly verification allowance is used up.
+ * Populated from `error.details` on the API response.
+ */
+export interface VerificationLimitDetails {
+    /** Always "verification_limit_reached" */
+    reason?: string;
+    /** Billing period the allowance belongs to */
+    period?: string;
+    /** ISO timestamp (UTC) when the next period, and a fresh allowance, starts */
+    next_period_start?: string;
+    /** Verifications included per month on the current plan */
+    included_per_month?: number;
+    /** Where to buy more verification credits */
+    buy_credits_url?: string;
+}
+
+/**
+ * Error thrown when the monthly verification allowance is used up (402,
+ * VERIFY_11014). No session was created. New verifications are refused until
+ * `next_period_start`, or until more credits are bought.
+ */
+export class VerificationLimitError extends TuteliqError {
+    constructor(
+        message = 'The monthly verification allowance is used up.',
+        meta?: ErrorMeta & { details?: VerificationLimitDetails }
+    ) {
+        super(message, 402, meta?.details, meta);
+        this.name = 'VerificationLimitError';
+        Object.setPrototypeOf(this, VerificationLimitError.prototype);
+    }
+
+    /** Strongly-typed accessor for the allowance details. */
+    get limitDetails(): VerificationLimitDetails | undefined {
+        return this.details as VerificationLimitDetails | undefined;
+    }
+}

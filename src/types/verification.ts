@@ -12,6 +12,9 @@ import {
     DocumentType,
     VerificationStatus,
     VerificationSessionStatus,
+    ChipPolicy,
+    VerificationCheck,
+    DocumentEvidence,
 } from '../constants.js';
 
 // =============================================================================
@@ -23,14 +26,26 @@ export interface CreateVerificationSessionInput {
     mode: VerificationMode;
     /** Preferred document type (optional hint for the web UI) */
     document_type?: DocumentType;
-    /** URL to redirect the user after verification completes (optional) */
+    /** How a passport or ID card chip read counts as document evidence. The API defaults to `optional`. */
+    chip_policy?: `${ChipPolicy}`;
+    /**
+     * @deprecated The API does not accept this field and the SDK no longer sends it.
+     * Set the redirect URL in the dashboard verification settings instead.
+     */
     redirect_url?: string;
-    /** Your external reference ID for this verification */
+    /** @deprecated The API does not accept this field and the SDK no longer sends it. */
     external_id?: string;
-    /** Your end-customer identifier */
+    /** @deprecated The API does not accept this field and the SDK no longer sends it. */
     customer_id?: string;
-    /** Custom key-value metadata */
+    /** @deprecated The API does not accept this field and the SDK no longer sends it. */
     metadata?: Record<string, unknown>;
+}
+
+export interface GetVerificationConfigInput {
+    /** ISO 3166-1 alpha-2 country code of the end user (e.g. "DE", "US") */
+    country?: string;
+    /** Region or state code within the country (e.g. "CA") */
+    region?: string;
 }
 
 // =============================================================================
@@ -46,8 +61,14 @@ export interface VerificationSession {
     expires_at: number;
     /** Verification mode */
     mode: VerificationMode;
-    /** Which checks the session will run (e.g. "document_and_selfie") */
-    verification_mode?: string;
+    /**
+     * The check configured for this key. For age sessions it may still be
+     * resolved per market on the user's device; the poll reports the check
+     * the result actually rests on.
+     */
+    verification_mode?: `${VerificationCheck}`;
+    /** How a chip read counts as document evidence for this session */
+    chip_policy?: `${ChipPolicy}`;
     /**
      * Width, in pixels, the capture UI should request from the camera.
      * Small print (document number, issuing authority, issue date) only
@@ -57,19 +78,97 @@ export interface VerificationSession {
     recommended_image_width?: number;
 }
 
+/**
+ * Status and outcome of a verification session, from `getVerificationSession`.
+ *
+ * The extracted document fields, `date_of_birth`, `failure_reasons` and
+ * `capture` are released once: only the first authenticated poll after the
+ * session reaches `completed` or `failed` carries them. Later polls return the
+ * decision alone. Persist them on that first read, or subscribe to the
+ * `verification.completed` webhook, which pushes them as they are produced.
+ */
 export interface VerificationSessionResult {
     /** Unique session identifier */
     session_id: string;
     /** Current session status */
     status: VerificationSessionStatus;
-    /** Verification mode */
+    /** @deprecated Not returned by the poll. Read it from the created session. */
     mode?: VerificationMode;
-    /** Verification result (present when status is 'completed') */
+    /** Verification result (null until there is one) */
     result?: VerificationResult | null;
-    /** ISO timestamp when the session was created */
-    created_at?: string;
-    /** ISO timestamp when the session expires */
-    expires_at?: string;
+    /** Present once there is a result: the check it rests on */
+    verification_mode?: `${VerificationCheck}`;
+    /** Present when the result rests on a document: what the evidence was */
+    document_evidence?: `${DocumentEvidence}`;
+    /**
+     * Name of the step the user has reached, for progress UI
+     * (e.g. "uploading", "processing", "done"). Not a closed list: new steps may appear.
+     */
+    step_progress?: string | null;
+    /** How a chip read counts as document evidence, as set at creation */
+    chip_policy?: `${ChipPolicy}`;
+    /** How the uploads were captured, as reported by the capture client. Released once, with the result. */
+    capture?: CaptureSummary | null;
+    /** Epoch milliseconds when the session was created */
+    created_at?: number;
+    /** Epoch milliseconds when the session expires */
+    expires_at?: number;
+}
+
+/**
+ * How the uploads were captured and which on-device checks ran, as the
+ * capture client reported it. Self-reported: informative, never a verdict.
+ */
+export interface CaptureSummary {
+    self_reported: true;
+    sdk: { name: string; version: string; platform: string; os_version: string; device_model: string } | null;
+    pipeline: string | null;
+    pipeline_version: number | null;
+    face: {
+        camera: string | null;
+        liveness_engine: string | null;
+        liveness_engine_version: number | null;
+        depth: {
+            verdict: 'live' | 'flat' | 'inconclusive';
+            frames_with_depth: number | null;
+            nose_relief_mm: number | null;
+            interpupillary_mm: number | null;
+            distance_cm: number | null;
+        } | null;
+    } | null;
+    document: {
+        camera: string | null;
+        auto_captured: boolean | null;
+        liveness: {
+            verdict: 'genuine' | 'suspicious' | 'inconclusive';
+            tilt_range_degrees: number | null;
+            optical_variability: number | null;
+            screen_score: number | null;
+            reasons: string[];
+        } | null;
+    } | null;
+    chip: {
+        access_protocol: string | null;
+        access_key: string | null;
+        access_key_from_photo: boolean | null;
+        chip_authentication: string | null;
+        active_authentication: string | null;
+        data_groups: number[];
+    } | null;
+    /** What each uploaded liveness frame shows, in upload order */
+    liveness_frame_kinds: string[] | null;
+}
+
+/** Age verification settings that apply to a market, from `getVerificationConfig`. */
+export interface VerificationConfig {
+    /** The check a user in this market will get under this key's settings */
+    mode: `${VerificationCheck}`;
+    /** Age at or above which a person counts as an adult in this market */
+    age_threshold: number;
+    /** Country the settings were resolved for (upper-cased), when one was given */
+    country?: string;
+    /** Market the country belongs to, when it maps to one */
+    market?: string;
 }
 
 // =============================================================================
@@ -94,7 +193,7 @@ export interface MrzFields {
     given_names: string | null;
 }
 
-/** PDF417/barcode data (US/CA driver's licenses) */
+/** @deprecated Not returned by the session poll or the webhook. */
 export interface BarcodeResult {
     /** Barcode format (e.g., "PDF417") */
     format: string;
@@ -112,7 +211,7 @@ export interface BarcodeResult {
     };
 }
 
-/** AI-powered document authenticity analysis */
+/** @deprecated Not returned by the session poll or the webhook. */
 export interface DocumentAuthenticityResult {
     /** Whether the document appears authentic */
     is_authentic: boolean | null;
@@ -132,30 +231,70 @@ export interface DocumentAuthenticityResult {
     overall_assessment: string | null;
 }
 
-/** Document extraction and validation details */
+/** A national identity number found on the document */
+export interface NationalIdResult {
+    value: string;
+    /** Whether the number passed its country's validation */
+    valid: boolean;
+    /** Kind of number (country-specific) */
+    type: string;
+    /** ISO country code the number belongs to */
+    country_code: string;
+}
+
+/**
+ * Document extraction and validation details.
+ *
+ * Only `ocr_confidence` is always present. The extracted fields are released
+ * once (see `VerificationSessionResult`) and absent on later polls.
+ */
 export interface DocumentDetails {
     /** OCR confidence (0-100) */
     ocr_confidence: number;
     /** Full name extracted from document */
-    name_extracted: string | null;
+    name_extracted?: string | null;
+    /** Given name(s) */
+    first_name?: string | null;
+    /** Surname */
+    last_name?: string | null;
     /** DOB extracted from document */
-    dob_extracted: string | null;
+    dob_extracted?: string | null;
     /** Document number */
-    document_number: string | null;
-    /** Whether document number passed algorithmic validation (45 countries) */
-    document_number_valid: boolean | null;
+    document_number?: string | null;
+    /** Whether document number passed algorithmic validation */
+    document_number_valid?: boolean | null;
+    /** Sex as printed on the document */
+    sex?: string | null;
     /** ISO country code */
-    country_code: string | null;
+    country_code?: string | null;
+    /** Country name */
+    country_name?: string | null;
     /** Detected document type */
-    document_type: string | null;
+    document_type?: string | null;
     /** Expiration date */
-    expiration_date: string | null;
+    expiration_date?: string | null;
     /** Whether the document has expired */
-    expired: boolean | null;
-    /** Whether MRZ check digits passed (null if no MRZ) */
-    mrz_valid: boolean | null;
-    /** Parsed MRZ fields (null if no MRZ) */
-    mrz_fields: MrzFields | null;
+    expired?: boolean | null;
+    /** Issue date */
+    issue_date?: string | null;
+    /** Height in centimetres, where the document states it */
+    height_cm?: number | null;
+    /** Place of birth */
+    place_of_birth?: string | null;
+    /** Nationality */
+    nationality?: string | null;
+    /** Issuing authority */
+    issuing_authority?: string | null;
+    /** The document data came from the document's chip and passed its integrity check */
+    chip_verified?: boolean;
+    /** The chip's signer chains to a trusted issuing country. Null when the chip was not used or this could not be checked. */
+    chip_issuer_trusted?: boolean | null;
+    /** National identity number, when the document carries one */
+    national_id?: NationalIdResult | null;
+    /** Whether MRZ check digits passed (null if no MRZ). Webhook deliveries only. */
+    mrz_valid?: boolean | null;
+    /** Parsed MRZ fields (null if no MRZ). Webhook deliveries only. */
+    mrz_fields?: MrzFields | null;
 }
 
 // =============================================================================
@@ -165,8 +304,8 @@ export interface DocumentDetails {
 export interface FaceMatchResult {
     /** Whether ID face matches selfie */
     matched: boolean;
-    /** Euclidean distance between face descriptors (lower = more similar) */
-    distance: number;
+    /** Distance between the two faces (lower = more similar). Webhook deliveries only. */
+    distance?: number;
     /** Confidence score (0-1, higher = more confident) */
     confidence: number;
 }
@@ -174,37 +313,43 @@ export interface FaceMatchResult {
 export interface LivenessResult {
     /** Whether liveness check passed */
     valid: boolean;
-    /** Reason for failure (if not valid) */
+    /** Reason for failure (if not valid). Webhook deliveries only. */
     reason?: string;
 }
 
+/** Range the true age likely falls in, when the age came from the selfie alone */
+export interface AgeRange {
+    low: number;
+    high: number;
+}
+
 /**
- * Full verification result returned via session.
+ * Verification result returned via the session poll.
  *
- * Includes document intelligence (MRZ, barcode, authenticity),
- * face matching, and liveness validation.
+ * `date_of_birth`, `failure_reasons` and the extracted `document` fields are
+ * released once, on the first authenticated poll after completion.
  */
 export interface VerificationResult {
     /** Verification status */
     status: 'verified' | 'failed' | 'needs_review';
     /** Calculated age (null if not determined) */
     age: number | null;
-    /** Date of birth in YYYY-MM-DD format */
-    date_of_birth: string | null;
-    /** Whether the person is under 18 */
+    /** When the age came from the selfie alone: the range the true age likely falls in */
+    age_range?: AgeRange | null;
+    /** Date of birth in YYYY-MM-DD format. Released once. */
+    date_of_birth?: string | null;
+    /** Whether the person is under the age threshold */
     is_minor: boolean | null;
-    /** Document extraction and validation details */
-    document: DocumentDetails;
-    /** PDF417/barcode data (present for US/CA driver's licenses) */
-    barcode: BarcodeResult | null;
-    /** AI-powered document authenticity analysis */
-    document_authenticity: DocumentAuthenticityResult | null;
+    /** What the document evidence was, when the result rests on a document */
+    document_evidence?: `${DocumentEvidence}`;
+    /** Document extraction and validation details (null when no document was used) */
+    document: DocumentDetails | null;
     /** Face comparison results */
     face_match: FaceMatchResult | null;
     /** Liveness check results */
     liveness: LivenessResult;
-    /** Reasons for any failures (empty array if fully verified) */
-    failure_reasons: string[];
+    /** Reasons for any failures. Free text, not a closed list. Released once. */
+    failure_reasons?: string[] | null;
 }
 
 /** @deprecated Use VerificationResult instead — returned via session flow */
@@ -251,6 +396,7 @@ export interface IdentityVerificationResult {
     credits_used: number;
 }
 
+/** A past verification, from `getVerification` (`GET /verify/{id}`). */
 export interface VerificationRetrieveResult {
     /** Unique verification ID */
     verification_id: string;
@@ -260,6 +406,8 @@ export interface VerificationRetrieveResult {
     age: number | null;
     /** Whether the person is under 18 (null if unknown) */
     is_minor: boolean | null;
+    /** OCR confidence of the document read (0-100) */
+    ocr_confidence?: number;
     /** Whether face matched */
     face_matched: boolean | null;
     /** Face match confidence */
@@ -272,19 +420,30 @@ export interface VerificationRetrieveResult {
     created_at: string;
 }
 
+/** A past age verification, from `getAgeVerification`. Carries no age and no personal data. */
+export interface AgeVerificationRetrieveResult {
+    /** Unique verification ID */
+    verification_id: string;
+    /** Verification status */
+    status: VerificationStatus;
+    /** Whether the person is under 18 (null if unknown) */
+    is_minor: boolean | null;
+    /** Whether face matched */
+    face_matched: boolean | null;
+    /** Whether liveness check passed */
+    liveness_valid: boolean;
+    /** Reasons for failure */
+    failure_reasons: string[];
+    /** ISO timestamp of verification */
+    created_at: string;
+}
+
+/** A past identity verification, from `getIdentityVerification`. Carries no personal data. */
 export interface IdentityRetrieveResult {
     /** Unique verification ID */
     verification_id: string;
     /** Verification status */
     status: VerificationStatus;
-    /** Full name extracted from document */
-    full_name?: string;
-    /** Date of birth in YYYY-MM-DD format */
-    date_of_birth?: string;
-    /** Document type used */
-    document_type?: string;
-    /** ISO 3166-1 alpha-2 country code */
-    country_code?: string;
     /** Whether face matched */
     face_matched: boolean | null;
     /** Face match confidence */

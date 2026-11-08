@@ -162,6 +162,12 @@ export enum WebhookEventType {
     GROOMING_DETECTED = 'grooming.detected',
     SELF_HARM_DETECTED = 'self_harm.detected',
     BULLYING_SEVERE = 'bullying.severe',
+    /** A verification session finished. Session-flow deliveries carry the outcome in `data.verification`. */
+    VERIFICATION_COMPLETED = 'verification.completed',
+    /** An age verification found the person to be a minor. */
+    MINOR_DETECTED = 'minor.detected',
+    CSAM_DETECTED = 'csam.detected',
+    CSAM_CRITICAL = 'csam.critical',
 }
 
 // =============================================================================
@@ -203,6 +209,23 @@ export enum ErrorCode {
     ANALYSIS_FAILED = 'ANALYSIS_5001',
     UNSUPPORTED_TYPE = 'ANALYSIS_5002',
     NO_CONTENT = 'ANALYSIS_5003',
+
+    // Verification errors (VERIFY_*)
+    VERIFY_NO_DOB_FOUND = 'VERIFY_11002',
+    VERIFY_FACE_NOT_DETECTED = 'VERIFY_11003',
+    VERIFY_FACE_MISMATCH = 'VERIFY_11004',
+    VERIFY_LIVENESS_FAILED = 'VERIFY_11005',
+    VERIFY_SESSION_NOT_FOUND = 'VERIFY_11006',
+    VERIFY_SESSION_EXPIRED = 'VERIFY_11007',
+    VERIFY_SESSION_INVALID_TOKEN = 'VERIFY_11008',
+    VERIFY_SESSION_ALREADY_USED = 'VERIFY_11009',
+    VERIFY_SESSION_WRONG_STATE = 'VERIFY_11010',
+    VERIFY_NOT_ENABLED = 'VERIFY_11011',
+    VERIFY_IDENTITY_NOT_ENABLED = 'VERIFY_11012',
+    /** The monthly verification allowance is used up (402). See VerificationLimitError. */
+    VERIFICATION_LIMIT_REACHED = 'VERIFY_11014',
+    /** The verification allowance could not be checked (503). Temporary; try again. */
+    VERIFICATION_ALLOWANCE_UNAVAILABLE = 'VERIFY_11015',
 }
 
 // =============================================================================
@@ -324,8 +347,42 @@ export enum VerificationMode {
  */
 export enum DocumentType {
     PASSPORT = 'passport',
-    ID_CARD = 'id_card',
+    NATIONAL_ID = 'national_id',
+    /** @deprecated Use NATIONAL_ID. Kept as an alias; it sends the same value. */
+    ID_CARD = 'national_id',
     DRIVERS_LICENSE = 'drivers_license',
+}
+
+/**
+ * How a passport or ID card chip read counts as document evidence.
+ * - `optional` (API default): the document photo is required and a chip read adds to it.
+ * - `required`: the photo and a valid chip read are both required.
+ * - `instead_of_photo`: a chip read that proves itself genuine replaces the photo;
+ *   otherwise the session asks for a photo.
+ */
+export enum ChipPolicy {
+    OPTIONAL = 'optional',
+    REQUIRED = 'required',
+    INSTEAD_OF_PHOTO = 'instead_of_photo',
+}
+
+/**
+ * The check a verification rests on: a document and a live face (`full`),
+ * or a live face alone (`liveness_only`).
+ */
+export enum VerificationCheck {
+    FULL = 'full',
+    LIVENESS_ONLY = 'liveness_only',
+}
+
+/**
+ * What the document evidence was, when a result rests on a document:
+ * the document photo, the chip read, or both.
+ */
+export enum DocumentEvidence {
+    PHOTO = 'photo',
+    CHIP = 'chip',
+    PHOTO_AND_CHIP = 'photo_and_chip',
 }
 
 /**
@@ -346,6 +403,9 @@ export enum VerificationSessionStatus {
     COMPLETED = 'completed',
     FAILED = 'failed',
     EXPIRED = 'expired',
+    /** Waiting for the user to add a document photo before the session can finish. Not final. */
+    DOCUMENT_REQUIRED = 'document_required',
+    /** @deprecated The API never returns this. A cancelled session reads as `expired`. */
     CANCELLED = 'cancelled',
 }
 
