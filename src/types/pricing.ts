@@ -15,11 +15,15 @@ export interface PricingPlan {
     /** Feature list */
     features: string[];
     /** Whether this is the recommended plan */
-    is_popular: boolean;
+    isPopular: boolean;
     /** Call-to-action text */
     cta: string;
     /** Call-to-action link */
-    cta_link: string;
+    ctaLink: string;
+    /** @deprecated The API sends this as `isPopular`. */
+    is_popular?: boolean;
+    /** @deprecated The API sends this as `ctaLink`. */
+    cta_link?: string;
 }
 
 /** Result from `GET /api/v1/pricing`. */

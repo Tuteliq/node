@@ -167,6 +167,7 @@ describe('Tuteliq — new endpoints sync', () => {
                 action: 'downgrade',
                 reason_code: 'insufficient_severity',
                 new_risk_level: 'moderate',
+                moderator_external_id: 'mod-1',
             });
             const call = fetchSpy.mock.calls[0];
             expect(call[0]).toBe('https://api.tuteliq.ai/api/v1/incidents/inc_1/review');
@@ -179,13 +180,13 @@ describe('Tuteliq — new endpoints sync', () => {
 
         it('rejects empty incident_id', async () => {
             await expect(
-                client.reviewIncident('', { action: 'confirm', reason_code: 'confirmed_accurate' }),
+                client.reviewIncident('', { action: 'confirm', reason_code: 'confirmed_accurate', moderator_external_id: 'mod-1' }),
             ).rejects.toThrow(ValidationError);
         });
 
         it('rejects action=reclassify without new_risk_category', async () => {
             await expect(
-                client.reviewIncident('inc_1', { action: 'reclassify', reason_code: 'incorrect_category' }),
+                client.reviewIncident('inc_1', { action: 'reclassify', reason_code: 'incorrect_category', moderator_external_id: 'mod-1' }),
             ).rejects.toThrow(/new_risk_category/);
         });
     });

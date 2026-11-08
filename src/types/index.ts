@@ -1,3 +1,5 @@
+import type { ContextInput } from './safety.js';
+
 // Re-export all types
 export * from './safety.js';
 export * from './analysis.js';
@@ -8,8 +10,12 @@ export * from './account.js';
 export * from './media.js';
 export * from './webhooks.js';
 export * from './pricing.js';
+export * from './status.js';
+export * from './fleet.js';
+export * from './compliance.js';
 export * from './voice-stream.js';
 export * from './detection.js';
+export * from './detection-fields.js';
 export * from './verification.js';
 export * from './synthetic.js';
 export * from './encryption.js';
@@ -95,23 +101,50 @@ export interface RateLimitInfo {
 // Usage Types
 // =============================================================================
 
+/**
+ * GET /api/v1/usage/summary: one day's request counts for this API key, with
+ * the tier's limits.
+ *
+ * Earlier versions of this type declared billing-period fields the API never
+ * sent on this endpoint; they are kept below, deprecated, so existing code
+ * still compiles. Billing-period figures are on `getUsageMonthly()`.
+ */
 export interface UsageSummary {
-    /** Messages used in current billing period */
-    messages_used: number;
-    /** Monthly message limit */
-    message_limit: number;
-    /** Purchased credits available */
-    purchased_credits: number;
-    /** Total available (limit + credits) */
-    total_available: number;
-    /** Usage percentage (0-100) */
-    usage_percentage: number;
-    /** Billing period start date (ISO string) */
-    period_start: string;
-    /** Billing period end date (ISO string) */
-    period_end: string;
-    /** Days remaining in billing period */
-    days_remaining: number;
+    apiKeyId: string;
+    /** Current tier */
+    tier: string;
+    /** The day these counts cover, YYYY-MM-DD */
+    date: string;
+    usage: {
+        totalRequests: number;
+        successRequests: number;
+        errorRequests: number;
+    };
+    quota: {
+        requestsPerMinute: number;
+        /** -1 = no limit */
+        requestsPerMonth: number;
+        /** -1 on paid tiers: there is no daily limit. A sandbox key reports its daily cap. */
+        requestsPerDay: number;
+        /** -1 when there is no daily limit */
+        remainingToday: number;
+    };
+    /** @deprecated Never sent by this endpoint. Use `getUsageMonthly().usage.used`. */
+    messages_used?: number;
+    /** @deprecated Never sent by this endpoint. Use `getUsageMonthly().usage.limit`. */
+    message_limit?: number;
+    /** @deprecated Never sent by this endpoint. */
+    purchased_credits?: number;
+    /** @deprecated Never sent by this endpoint. Use `getUsageMonthly().usage.limit`. */
+    total_available?: number;
+    /** @deprecated Never sent by this endpoint. Use `getUsageMonthly().usage.percent_used`. */
+    usage_percentage?: number;
+    /** @deprecated Never sent by this endpoint. Use `getUsageMonthly().billing.current_period_start`. */
+    period_start?: string;
+    /** @deprecated Never sent by this endpoint. Use `getUsageMonthly().billing.current_period_end`. */
+    period_end?: string;
+    /** @deprecated Never sent by this endpoint. Use `getUsageMonthly().billing.days_remaining`. */
+    days_remaining?: number;
 }
 
 /**
@@ -213,6 +246,35 @@ export interface UsageMonthlyResult {
         pricing: string;
         buy_credits: string;
     };
+    /**
+     * Present only on an enterprise verification plan. `usage.used` and
+     * `usage.limit` then count verifications rather than credits, and
+     * `tier_display_name` is the plan name.
+     */
+    verification?: VerificationUsage;
+}
+
+/** Verification allowance for the current period (enterprise verification plans). */
+export interface VerificationUsage {
+    /** YYYY-MM */
+    period: string;
+    usage_timezone: string;
+    next_period_start: string;
+    included_per_month: number;
+    included_used: number;
+    /** Verifications taken from packs this period */
+    pack_used: number;
+    /** Remaining balance across your verification packs */
+    packs_remaining: number;
+    remaining: number;
+    limit_reached: boolean;
+    /** Completed verifications this period */
+    total: number;
+    /** Verifications started and not finished yet */
+    in_progress: number;
+    sandbox_count: number;
+    /** Per API key: completed and sandbox counts */
+    by_key: Record<string, { total: number; sandbox: number }>;
 }
 
 // =============================================================================
@@ -254,19 +316,11 @@ export interface BatchItemBase {
      * and is echoed back untouched.
      */
     id?: string;
-    /** Optional context - string shorthand or detailed object */
-    context?: string | {
-        language?: string;
-        ageGroup?: string;
-        relationship?: string;
-        /**
-         * Your platform/app name (e.g. "MyApp"), used for dashboard
-         * attribution. The SDK appends its own identifier before sending it —
-         * "MyApp" is sent to the API as "MyApp - Node SDK".
-         */
-        platform?: string;
-        country?: string;
-    };
+    /**
+     * Optional context - string shorthand or detailed object, as on the
+     * single-item methods. Emotions items use only `ageGroup`.
+     */
+    context?: ContextInput;
     /** Optional external ID for correlation */
     external_id?: string;
 }
@@ -306,7 +360,7 @@ export interface BatchAnalyzeInput {
     items: BatchItem[];
     /** Process items in parallel (default: true) */
     parallel?: boolean;
-    /** Continue processing if an item fails (default: true) */
+    /** @deprecated Not accepted by the API and not sent; items always fail independently. */
     continueOnError?: boolean;
 }
 
@@ -323,6 +377,8 @@ export interface BatchResultItem {
     result?: unknown;
     /** Error message (if failed) */
     error?: string;
+    /** Error code (if failed), as on an error response */
+    error_code?: string;
     /** Credits consumed by this item (if successful) */
     credits_used?: number;
     /** External ID (if provided) */
