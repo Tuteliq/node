@@ -5,9 +5,38 @@ import type {
     VoiceStreamEvent,
     VoiceSessionSummaryEvent,
 } from './types/voice-stream.js';
+import { resolvePlatform } from './utils/platform.js';
 
 /** WebSocket URL for voice streaming */
-const VOICE_STREAM_URL = 'wss://api.tuteliq.ai/voice/stream';
+const VOICE_STREAM_URL = 'wss://api.tuteliq.ai/api/v1/safety/voice/stream';
+
+/** Binary frame prefix the API reads as a video frame (audio goes untagged). */
+const VIDEO_FRAME_PREFIX = 0x01;
+
+/**
+ * Builds the `config` message in the API's wire format. `context` is sent
+ * only when given, or when `withDefaultContext` is set, because the server
+ * merges it into the session and a bare `{ platform }` would overwrite the
+ * platform set earlier.
+ */
+function buildConfigMessage(config: VoiceStreamConfig, withDefaultContext: boolean): Record<string, unknown> {
+    const message: Record<string, unknown> = { type: 'config' };
+    if (config.intervalSeconds !== undefined) message.interval_seconds = config.intervalSeconds;
+    if (config.analysisTypes !== undefined) message.analysis_types = config.analysisTypes;
+    if (config.enableVideo !== undefined) message.enable_video = config.enableVideo;
+    if (config.frameIntervalSeconds !== undefined) message.frame_interval_seconds = config.frameIntervalSeconds;
+
+    const context = config.context;
+    if (context || withDefaultContext) {
+        message.context = {
+            ...(context?.language !== undefined && { language: context.language }),
+            ...(context?.ageGroup !== undefined && { age_group: context.ageGroup }),
+            ...(context?.childAge !== undefined && { child_age: context.childAge }),
+            platform: resolvePlatform(context?.platform),
+        };
+    }
+    return message;
+}
 
 /**
  * Creates a voice streaming session over WebSocket.
@@ -54,20 +83,6 @@ export function createVoiceStream(
                 },
             });
 
-            ws.on('open', () => {
-                active = true;
-
-                // Send initial config if provided
-                if (config) {
-                    const configMsg = {
-                        type: 'config',
-                        interval_seconds: config.intervalSeconds,
-                        analysis_types: config.analysisTypes,
-                        context: config.context,
-                    };
-                    ws!.send(JSON.stringify(configMsg));
-                }
-            });
 
             ws.on('message', (data: Buffer | ArrayBuffer | Buffer[]) => {
                 try {
@@ -76,7 +91,13 @@ export function createVoiceStream(
 
                     switch (event.type) {
                         case 'ready':
+                            // The API reads messages only once the session
+                            // is ready, so the initial config goes now.
                             sessionId = event.session_id;
+                            active = true;
+                            if (config) {
+                                ws!.send(JSON.stringify(buildConfigMessage(config, true)));
+                            }
                             handlers?.onReady?.(event);
                             resolve();
                             break;
@@ -85,6 +106,9 @@ export function createVoiceStream(
                             break;
                         case 'alert':
                             handlers?.onAlert?.(event);
+                            break;
+                        case 'frame_analysis':
+                            handlers?.onFrameAnalysis?.(event);
                             break;
                         case 'session_summary':
                             handlers?.onSessionSummary?.(event);
@@ -134,17 +158,21 @@ export function createVoiceStream(
             ws.send(data);
         },
 
+        sendVideoFrame(data: Buffer | Uint8Array): void {
+            if (!ws || !active) {
+                throw new Error('Voice stream is not connected');
+            }
+            const frame = new Uint8Array(data.length + 1);
+            frame[0] = VIDEO_FRAME_PREFIX;
+            frame.set(data, 1);
+            ws.send(frame);
+        },
+
         updateConfig(newConfig: VoiceStreamConfig): void {
             if (!ws || !active) {
                 throw new Error('Voice stream is not connected');
             }
-            const configMsg = {
-                type: 'config',
-                interval_seconds: newConfig.intervalSeconds,
-                analysis_types: newConfig.analysisTypes,
-                context: newConfig.context,
-            };
-            ws.send(JSON.stringify(configMsg));
+            ws.send(JSON.stringify(buildConfigMessage(newConfig, false)));
         },
 
         async end(): Promise<VoiceSessionSummaryEvent> {

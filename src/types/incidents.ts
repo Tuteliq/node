@@ -8,6 +8,8 @@
  * fields the caller must decrypt client-side with their RSA private key.
  */
 
+import type { SpeakerStance } from './detection-fields.js';
+
 export type IncidentSource = 'text' | 'voice' | 'image' | 'video' | 'video_stream';
 /** An incident's stored `risk_level`. Detection responses and webhooks spell `moderate` as `medium`. */
 export type IncidentSeverity = 'low' | 'moderate' | 'high' | 'critical';
@@ -31,9 +33,6 @@ export type IncidentCategory =
     | 'distress_signals'
     | 'tfgbv'
     | 'synthetic_content';
-
-/** Whether the speaker is doing what was detected or reporting someone else doing it. */
-export type SpeakerStance = 'deploying' | 'describing_third_party' | 'unclear';
 
 export interface ListIncidentsInput {
     /** Filter by risk_category (e.g. 'bullying', 'grooming', 'synthetic_content'). */

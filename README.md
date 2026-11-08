@@ -641,7 +641,7 @@ for (const page of result.page_results) {
 }
 ```
 
-Available endpoints: `unsafe`, `bullying`, `grooming`, `social-engineering`, `coercive-control`, `radicalisation`, `romance-scam`, `mule-recruitment`. Supported format: PDF only (max 50MB, 100 pages).
+Available endpoints: `unsafe`, `bullying`, `grooming`, `social-engineering`, `coercive-control`, `radicalisation`, `romance-scam`, `mule-recruitment`. Supported formats: PDF (max 50MB, 100 pages), or a PNG, JPEG or WebP image read as a one-page document. For a messaging screenshot, pass `splitBySender: true` to judge the last received message with the earlier ones as history.
 
 #### `voiceStream(config?, handlers?)`
 
@@ -668,6 +668,17 @@ const summary = await session.end()
 console.log('Risk:', summary.overall_risk)
 console.log('Score:', summary.overall_risk_score)
 console.log('Full transcript:', summary.transcript)
+```
+
+To analyse video alongside the audio, set `enableVideo` and send JPEG or PNG frames. Each analysed frame arrives as a `frame_analysis` event, and concerning frames also raise an alert with category `visual`:
+
+```typescript
+const session = tuteliq.voiceStream(
+  { enableVideo: true, frameIntervalSeconds: 5, context: { ageGroup: '13-15', childAge: 14 } },
+  { onFrameAnalysis: (e) => console.log('Frame', e.frame_index, e.severity) }
+)
+
+session.sendVideoFrame(jpegFrame)
 ```
 
 ---
@@ -714,10 +725,10 @@ console.log(result.classification)              // 'confirmed_synthetic'
 console.log(result.confidence)                  // 0.94
 console.log(result.level)                       // 'critical'
 
-// Vision AI forensic analysis
-console.log(result.vision.is_likely_synthetic)  // true
-console.log(result.vision.artifacts)            // ['smooth_skin_texture', 'inconsistent_lighting']
-console.log(result.vision.face_analysis)        // "Uncanny valley facial features..."
+// Semantic forensic analysis
+console.log(result.semantic_analysis.is_likely_synthetic)  // true
+console.log(result.semantic_analysis.artifacts)            // ['smooth_skin_texture', 'inconsistent_lighting']
+console.log(result.semantic_analysis.face_analysis)        // "Uncanny valley facial features..."
 
 // EXIF/metadata analysis
 console.log(result.metadata_analysis.has_exif)             // false
@@ -800,11 +811,10 @@ console.log(result.video.has_audio)          // true
 
 // Temporal face consistency (detects face-swapped deepfakes)
 if (result.temporal_consistency) {
-  console.log(result.temporal_consistency.identity_consistency_score) // 0.4 (low = face drift)
-  console.log(result.temporal_consistency.landmark_stability_score)   // 0.3 (low = jitter)
-  console.log(result.temporal_consistency.temporal_consistency_score) // 0.35
-  console.log(result.temporal_consistency.anomalous_frame_pairs)     // [{ frame_a: 3, frame_b: 4, distance: 0.7 }]
-  console.log(result.temporal_consistency.signals)                   // ['face_identity_drift', 'landmark_jitter']
+  console.log(result.temporal_consistency.identity_consistency) // 0.4 (low = face drift)
+  console.log(result.temporal_consistency.landmark_stability)   // 0.3 (low = jitter)
+  console.log(result.temporal_consistency.score)                // 0.35
+  console.log(result.temporal_consistency.anomalous_pairs)      // [{ frame_a: 3, frame_b: 4, distance: 0.7 }]
 }
 
 // Lip-sync correlation (detects dubbed deepfakes)

@@ -128,6 +128,10 @@ import {
     DetectSyntheticVideoInput,
     SyntheticVideoResult,
     SyntheticProfile,
+    VerifyImageMatchInput,
+    VerifyImageMatchResult,
+    SafetyClassification,
+    SafetyClassificationResult,
     // Customer-managed encryption keys
     RegisterEncryptionKeyInput,
     CustomerEncryptionKey,
@@ -183,6 +187,7 @@ import {
 
 import { withRetry } from './utils/retry.js';
 import { createVoiceStream } from './voice-stream.js';
+import { resolvePlatform } from './utils/platform.js';
 
 /** Tuteliq API endpoint - locked to official server */
 const API_BASE_URL = 'https://api.tuteliq.ai';
@@ -249,6 +254,12 @@ const UPLOAD_MIME_TYPES: Record<string, string> = {
 export function mimeTypeForFilename(filename: string): string | undefined {
     const ext = filename.toLowerCase().split('.').pop();
     return ext ? UPLOAD_MIME_TYPES[ext] : undefined;
+}
+
+/** Base64 for a JSON image field; a string is taken as already encoded. */
+function toBase64(image: Buffer | Uint8Array | string): string {
+    if (typeof image === 'string') return image;
+    return Buffer.from(image.buffer, image.byteOffset, image.byteLength).toString('base64');
 }
 
 /** Blob for an upload, typed from the filename so the API accepts it. */
@@ -399,18 +410,9 @@ export class Tuteliq {
         }
     }
 
-    private static readonly SDK_IDENTIFIER = 'Node SDK';
-
-    /**
-     * Resolves the platform string by appending the SDK identifier.
-     * - "MyApp" → "MyApp - Node SDK"
-     * - undefined → "Node SDK"
-     */
+    /** See `resolvePlatform` in utils/platform.ts. */
     private static resolvePlatform(platform?: string): string {
-        if (platform && platform.length > 0) {
-            return `${platform} - ${Tuteliq.SDK_IDENTIFIER}`;
-        }
-        return Tuteliq.SDK_IDENTIFIER;
+        return resolvePlatform(platform);
     }
 
     /**
@@ -1668,6 +1670,35 @@ export class Tuteliq {
     }
 
     /**
+     * Get this account's platform safety classification: the daily snapshot
+     * also shown on your dashboard.
+     *
+     * An account with no classification yet answers `{ exists: false }`,
+     * which is not a zero score. With too little activity to classify, the
+     * classification exists but `score` and `band` are null.
+     *
+     * @example
+     * ```typescript
+     * const result = await tuteliq.getSafetyClassification()
+     * if (result.exists && result.classification.score !== null) {
+     *   console.log(result.classification.score, result.classification.band)
+     * }
+     * ```
+     */
+    async getSafetyClassification(): Promise<SafetyClassificationResult> {
+        try {
+            const classification = await this.requestWithRetry<SafetyClassification>(
+                'GET',
+                '/api/v1/safety-classification'
+            );
+            return { exists: true, classification };
+        } catch (err) {
+            if (err instanceof NotFoundError) return { exists: false };
+            throw err;
+        }
+    }
+
+    /**
      * Get current rate limit quota status
      *
      * @example
@@ -1945,7 +1976,7 @@ export class Tuteliq {
     /**
      * Analyze voice/audio for safety concerns
      *
-     * Transcribes the audio via Whisper, then runs safety analysis on the transcript.
+     * Transcribes the audio, then runs safety analysis on the transcript.
      *
      * @example
      * ```typescript
@@ -1986,6 +2017,7 @@ export class Tuteliq {
         formData.append('platform', Tuteliq.resolvePlatform(input.platform));
         if (input.childAge != null) formData.append('child_age', String(input.childAge));
         if (input.metadata) formData.append('metadata', JSON.stringify(input.metadata));
+        if (input.incident_moderation_enabled !== undefined) formData.append('incident_moderation_enabled', String(input.incident_moderation_enabled));
 
         return withRetry(
             () => this.multipartRequest<VoiceAnalysisResult>(
@@ -2040,7 +2072,9 @@ export class Tuteliq {
         if (input.ageGroup) formData.append('age_group', input.ageGroup);
         formData.append('platform', Tuteliq.resolvePlatform(input.platform));
         if (input.metadata) formData.append('metadata', JSON.stringify(input.metadata));
+        if (input.incident_moderation_enabled !== undefined) formData.append('incident_moderation_enabled', String(input.incident_moderation_enabled));
         if (input.flagProfanity !== undefined) formData.append('flag_profanity', String(input.flagProfanity));
+        if (input.flagRiskTerms !== undefined) formData.append('flag_risk_terms', String(input.flagRiskTerms));
 
         return withRetry(
             () => this.multipartRequest<ImageAnalysisResult>(
@@ -2316,13 +2350,17 @@ export class Tuteliq {
             formData.append('file', input.file, input.filename);
         }
 
+        if (input.analysisType) formData.append('analysis_type', input.analysisType);
+        if (input.maxFrames != null) formData.append('max_frames', String(input.maxFrames));
         if (input.fileId) formData.append('file_id', input.fileId);
         if (input.external_id) formData.append('external_id', input.external_id);
         if (input.customer_id) formData.append('customer_id', input.customer_id);
         if (input.ageGroup) formData.append('age_group', input.ageGroup);
         formData.append('platform', Tuteliq.resolvePlatform(input.platform));
         if (input.metadata) formData.append('metadata', JSON.stringify(input.metadata));
+        if (input.incident_moderation_enabled !== undefined) formData.append('incident_moderation_enabled', String(input.incident_moderation_enabled));
         if (input.flagProfanity !== undefined) formData.append('flag_profanity', String(input.flagProfanity));
+        if (input.flagRiskTerms !== undefined) formData.append('flag_risk_terms', String(input.flagRiskTerms));
 
         return withRetry(
             () => this.multipartRequest<VideoAnalysisResult>(
@@ -2338,10 +2376,13 @@ export class Tuteliq {
     // =========================================================================
 
     /**
-     * Analyze a PDF document for safety and compliance concerns.
+     * Analyze a PDF document, or an image read as a one-page document, for
+     * safety and compliance concerns.
      *
      * Extracts text from each page, runs detection endpoints in parallel,
-     * and returns per-page results with an overall risk assessment.
+     * and returns per-page results with an overall risk assessment. For a
+     * messaging screenshot, set `splitBySender` to judge the last received
+     * message with the rest as history.
      * Zero-retention: no document data is stored after processing.
      *
      * @example
@@ -2361,7 +2402,7 @@ export class Tuteliq {
      */
     async analyzeDocument(input: AnalyzeDocumentInput): Promise<DocumentAnalysisResult> {
         if (!input.file) {
-            throw new ValidationError('PDF file is required');
+            throw new ValidationError('Document file is required');
         }
         if (!input.filename) {
             throw new ValidationError('Filename is required');
@@ -2383,7 +2424,9 @@ export class Tuteliq {
         if (input.language) formData.append('language', input.language);
         formData.append('platform', Tuteliq.resolvePlatform(input.platform));
         if (input.supportThreshold) formData.append('support_threshold', input.supportThreshold);
+        if (input.splitBySender) formData.append('split_by_sender', 'true');
         if (input.metadata) formData.append('metadata', JSON.stringify(input.metadata));
+        if (input.incident_moderation_enabled !== undefined) formData.append('incident_moderation_enabled', String(input.incident_moderation_enabled));
 
         return withRetry(
             () => this.multipartRequest<DocumentAnalysisResult>(
@@ -2662,7 +2705,6 @@ export class Tuteliq {
                 ...(input.customer_id && { customer_id: input.customer_id }),
                 ...(input.metadata && { metadata: input.metadata }),
                 ...(input.incident_moderation_enabled !== undefined && { incident_moderation_enabled: input.incident_moderation_enabled }),
-                ...(input.bypassCache && { bypass_cache: true }),
                 ...(Object.keys(options).length > 0 && { options }),
             }
         );
@@ -2684,7 +2726,7 @@ export class Tuteliq {
      * })
      *
      * console.log(result.classification)               // 'confirmed_synthetic'
-     * console.log(result.vision.artifacts)              // ['uniform skin texture...']
+     * console.log(result.semantic_analysis.artifacts)   // ['uniform skin texture...']
      * console.log(result.metadata_analysis.has_camera)  // false
      * console.log(result.provenance?.ai_tool)           // 'DALL-E 3'
      * ```
@@ -2709,9 +2751,9 @@ export class Tuteliq {
         if (input.language) formData.append('language', input.language);
         if (input.external_id) formData.append('external_id', input.external_id);
         if (input.customer_id) formData.append('customer_id', input.customer_id);
+        if (input.fileId) formData.append('file_id', input.fileId);
         formData.append('platform', Tuteliq.resolvePlatform(input.platform));
         if (input.metadata) formData.append('metadata', JSON.stringify(input.metadata));
-        if (input.bypassCache) formData.append('bypass_cache', 'true');
 
         return withRetry(
             () => this.multipartRequest<SyntheticImageResult>(
@@ -2762,9 +2804,9 @@ export class Tuteliq {
         if (input.language) formData.append('language', input.language);
         if (input.external_id) formData.append('external_id', input.external_id);
         if (input.customer_id) formData.append('customer_id', input.customer_id);
+        if (input.fileId) formData.append('file_id', input.fileId);
         formData.append('platform', Tuteliq.resolvePlatform(input.platform));
         if (input.metadata) formData.append('metadata', JSON.stringify(input.metadata));
-        if (input.bypassCache) formData.append('bypass_cache', 'true');
 
         return withRetry(
             () => this.multipartRequest<SyntheticAudioResult>(
@@ -2792,7 +2834,7 @@ export class Tuteliq {
      * })
      *
      * console.log(result.classification)                          // 'suspected_synthetic'
-     * console.log(result.temporal_consistency?.identity_consistency_score) // 0.42
+     * console.log(result.temporal_consistency?.identity_consistency) // 0.42
      * console.log(result.lip_sync?.correlation)                   // 0.21
      * ```
      */
@@ -2817,9 +2859,9 @@ export class Tuteliq {
         if (input.language) formData.append('language', input.language);
         if (input.external_id) formData.append('external_id', input.external_id);
         if (input.customer_id) formData.append('customer_id', input.customer_id);
+        if (input.fileId) formData.append('file_id', input.fileId);
         formData.append('platform', Tuteliq.resolvePlatform(input.platform));
         if (input.metadata) formData.append('metadata', JSON.stringify(input.metadata));
-        if (input.bypassCache) formData.append('bypass_cache', 'true');
 
         return withRetry(
             () => this.multipartRequest<SyntheticVideoResult>(
@@ -2827,6 +2869,45 @@ export class Tuteliq {
                 formData
             ),
             { maxRetries: this.retries, initialDelay: this.retryDelay }
+        );
+    }
+
+    /**
+     * Run image checks in one call: face match against a reference image,
+     * age estimate, explicit-content and skin-exposure checks, and
+     * synthetic-image detection. Images are processed in memory and never
+     * stored.
+     *
+     * @example
+     * ```typescript
+     * import { readFileSync } from 'fs'
+     *
+     * const result = await tuteliq.verifyImageMatch({
+     *   image: readFileSync('selfie.jpg'),
+     *   referenceImage: readFileSync('profile.jpg'),
+     *   checks: ['face_match', 'age'],
+     * })
+     *
+     * console.log(result.face_match?.matched)  // true
+     * console.log(result.age?.estimated_age)   // 24
+     * ```
+     */
+    async verifyImageMatch(input: VerifyImageMatchInput): Promise<VerifyImageMatchResult> {
+        if (!input.image || input.image.length === 0) {
+            throw new ValidationError('Image is required');
+        }
+
+        return this.requestWithRetry<VerifyImageMatchResult>(
+            'POST', '/api/v1/verify-image-match',
+            {
+                image: toBase64(input.image),
+                ...(input.referenceImage && { reference_image: toBase64(input.referenceImage) }),
+                ...(input.checks && { checks: input.checks }),
+                ...(input.external_id && { external_id: input.external_id }),
+                ...(input.customer_id && { customer_id: input.customer_id }),
+                ...(input.metadata && { metadata: input.metadata }),
+                ...(input.incident_moderation_enabled !== undefined && { incident_moderation_enabled: input.incident_moderation_enabled }),
+            }
         );
     }
 
@@ -2845,7 +2926,7 @@ export class Tuteliq {
      * console.log(profile.synthetic_count)          // 12
      * ```
      *
-     * @deprecated The backing API route was never shipped and this method
+     * @deprecated The backing API route has been removed and this method
      * returns a 404 at runtime. It will be removed in the next major version.
      */
     async getSyntheticProfile(customerId: string): Promise<SyntheticProfile> {
