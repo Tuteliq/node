@@ -19,7 +19,10 @@ export {
     DocumentType,
     VerificationStatus,
     VerificationSessionStatus,
+    Detection,
+    CONVERSATION_TYPES,
 } from './constants.js';
+export type { ConversationType, DetectionName } from './constants.js';
 
 // Error exports
 export {
@@ -56,6 +59,9 @@ export type {
     GroomingResult,
     DetectUnsafeInput,
     UnsafeResult,
+    TextDetectionRequestFields,
+    BullyingType,
+    GroomingFlag,
     AnalyzeInput,
     AnalyzeResult,
 
@@ -97,6 +103,37 @@ export type {
     AnalyseMultiInput,
     AnalyseMultiResult,
     AnalyseMultiSummary,
+    MultiDetectionResult,
+    SocialEngineeringResult,
+    AppFraudResult,
+    RomanceScamResult,
+    MuleRecruitmentResult,
+    GamblingHarmResult,
+    CoerciveControlResult,
+    VulnerabilityExploitationResult,
+    RadicalisationResult,
+    DistressSignalsResult,
+    TFGBVResult,
+    DetectNicknameInput,
+    NicknameResult,
+    NicknameCategory,
+    NicknameStrictness,
+
+    // Shared text detection fields
+    ParticipantRole,
+    ParticipantRelationship,
+    DeclaredSender,
+    DeclaredRecipient,
+    AttestationReason,
+    DetectionAttestation,
+    AttestationFields,
+    ParticipantsApplied,
+    MinorDisclosure,
+    DeclaredContextFields,
+    SpeakerRole,
+    SpeakerStance,
+    ResultAdjustments,
+    TextDetectionFields,
 
     // Media types
     AnalyzeVoiceInput,

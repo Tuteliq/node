@@ -1,3 +1,5 @@
+import type { ContextInput } from './safety.js';
+
 // Re-export all types
 export * from './safety.js';
 export * from './analysis.js';
@@ -13,6 +15,7 @@ export * from './fleet.js';
 export * from './compliance.js';
 export * from './voice-stream.js';
 export * from './detection.js';
+export * from './detection-fields.js';
 export * from './verification.js';
 export * from './synthetic.js';
 export * from './encryption.js';
@@ -312,19 +315,11 @@ export interface BatchItemBase {
      * and is echoed back untouched.
      */
     id?: string;
-    /** Optional context - string shorthand or detailed object */
-    context?: string | {
-        language?: string;
-        ageGroup?: string;
-        relationship?: string;
-        /**
-         * Your platform/app name (e.g. "MyApp"), used for dashboard
-         * attribution. The SDK appends its own identifier before sending it —
-         * "MyApp" is sent to the API as "MyApp - Node SDK".
-         */
-        platform?: string;
-        country?: string;
-    };
+    /**
+     * Optional context - string shorthand or detailed object, as on the
+     * single-item methods. Emotions items use only `ageGroup`.
+     */
+    context?: ContextInput;
     /** Optional external ID for correlation */
     external_id?: string;
 }
@@ -364,7 +359,7 @@ export interface BatchAnalyzeInput {
     items: BatchItem[];
     /** Process items in parallel (default: true) */
     parallel?: boolean;
-    /** Continue processing if an item fails (default: true) */
+    /** @deprecated Not accepted by the API and not sent; items always fail independently. */
     continueOnError?: boolean;
 }
 
@@ -381,6 +376,8 @@ export interface BatchResultItem {
     result?: unknown;
     /** Error message (if failed) */
     error?: string;
+    /** Error code (if failed), as on an error response */
+    error_code?: string;
     /** Credits consumed by this item (if successful) */
     credits_used?: number;
     /** External ID (if provided) */
