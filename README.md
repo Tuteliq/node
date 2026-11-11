@@ -959,10 +959,13 @@ const session = await tuteliq.createVerificationSession({
   mode: VerificationMode.IDENTITY,
   document_type: DocumentType.PASSPORT,     // Optional hint for the web UI
   chip_policy: ChipPolicy.INSTEAD_OF_PHOTO, // Optional, default 'optional'
+  auto_capture: false,                      // Optional, default true
 })
 ```
 
 `chip_policy` sets how a passport or ID card chip read counts as document evidence: `optional` (the document photo is required and a chip read adds to it), `required` (the photo and a valid chip read are both required) or `instead_of_photo` (a chip read that proves itself genuine replaces the photo; otherwise the user is asked for a photo).
+
+`auto_capture` sets whether the web UI takes the document photo itself once the document is framed, steady and sharp (`true`, the default), or the user taps Capture (`false`). It applies to age and identity sessions, and is returned on the session.
 
 `redirect_url`, `external_id`, `customer_id` and `metadata` are deprecated: the API does not accept them and the SDK no longer sends them. Set the redirect URL in your dashboard verification settings.
 

@@ -29,6 +29,12 @@ export interface CreateVerificationSessionInput {
     /** How a passport or ID card chip read counts as document evidence. The API defaults to `optional`. */
     chip_policy?: `${ChipPolicy}`;
     /**
+     * Whether the web UI takes the document photo itself once the document is
+     * framed, steady and sharp. The API defaults to `true`; with `false` the
+     * user taps Capture.
+     */
+    auto_capture?: boolean;
+    /**
      * @deprecated The API does not accept this field and the SDK no longer sends it.
      * Set the redirect URL in the dashboard verification settings instead.
      */
@@ -69,6 +75,8 @@ export interface VerificationSession {
     verification_mode?: `${VerificationCheck}`;
     /** How a chip read counts as document evidence for this session */
     chip_policy?: `${ChipPolicy}`;
+    /** Whether the web UI takes the document photo itself */
+    auto_capture?: boolean;
     /**
      * Width, in pixels, the capture UI should request from the camera.
      * Small print (document number, issuing authority, issue date) only

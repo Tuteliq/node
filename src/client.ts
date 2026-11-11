@@ -2993,6 +2993,7 @@ export class Tuteliq {
             mode: VerificationSession['mode'];
             verification_mode?: VerificationSession['verification_mode'];
             chip_policy?: VerificationSession['chip_policy'];
+            auto_capture?: boolean;
             recommended_image_width?: number;
         }>(
             'POST',
@@ -3001,6 +3002,8 @@ export class Tuteliq {
                 mode: input.mode,
                 ...(input.document_type && { document_type: input.document_type }),
                 ...(input.chip_policy && { chip_policy: input.chip_policy }),
+                // Checked against undefined: `false` is the value that matters.
+                ...(input.auto_capture !== undefined && { auto_capture: input.auto_capture }),
             }
         );
 
@@ -3015,6 +3018,7 @@ export class Tuteliq {
             mode: response.mode,
             ...(response.verification_mode !== undefined && { verification_mode: response.verification_mode }),
             ...(response.chip_policy !== undefined && { chip_policy: response.chip_policy }),
+            ...(response.auto_capture !== undefined && { auto_capture: response.auto_capture }),
             ...(response.recommended_image_width !== undefined && { recommended_image_width: response.recommended_image_width }),
         };
     }
