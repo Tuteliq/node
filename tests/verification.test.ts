@@ -96,6 +96,33 @@ describe('createVerificationSession', () => {
         expect(session.verification_mode).toBe('full');
     });
 
+    it('sends auto_capture false, which turns off auto-capture in the web UI, and returns it', async () => {
+        const client = new Tuteliq('test-api-key', { retries: 0 });
+        const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValueOnce(mockFetchResponse({ ...createdSession, auto_capture: false }));
+
+        const session = await client.createVerificationSession({
+            mode: VerificationMode.IDENTITY,
+            auto_capture: false,
+        });
+
+        expect(sentBody(fetchSpy).auto_capture).toBe(false);
+        expect(session.auto_capture).toBe(false);
+    });
+
+    it('sends auto_capture true when set, and leaves it to the API default when not', async () => {
+        const client = new Tuteliq('test-api-key', { retries: 0 });
+        const fetchSpy = vi.spyOn(global, 'fetch')
+            .mockResolvedValueOnce(mockFetchResponse({ ...createdSession, auto_capture: true }))
+            .mockResolvedValueOnce(mockFetchResponse({ ...createdSession, auto_capture: true }));
+
+        await client.createVerificationSession({ mode: VerificationMode.AGE, auto_capture: true });
+        expect(sentBody(fetchSpy).auto_capture).toBe(true);
+
+        const session = await client.createVerificationSession({ mode: VerificationMode.AGE });
+        expect(sentBody(fetchSpy, 1)).not.toHaveProperty('auto_capture');
+        expect(session.auto_capture).toBe(true);
+    });
+
     it('does not send fields the API does not accept', async () => {
         const client = new Tuteliq('test-api-key', { retries: 0 });
         const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValueOnce(mockFetchResponse(createdSession));

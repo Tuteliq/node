@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- `auto_capture` on `createVerificationSession`: `false` turns off automatic document capture in the web UI, so the user taps Capture. Defaults to `true` on the API. Returned on the session.
+
 ## [3.0.0] - 2026-11-08
 
 Brings the SDK up to date with the API: new methods and fields, request bugs fixed, and types corrected to what the API returns.
