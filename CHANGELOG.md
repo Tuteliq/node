@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.1.0] - 2026-11-12
+
 ### Added
 
 - `auto_capture` on `createVerificationSession`: `false` turns off automatic document capture in the web UI, so the user taps Capture. Defaults to `true` on the API. Returned on the session.
@@ -395,6 +397,8 @@ Documentation only. No code change from 2.17.0 — the published bundles are ide
   - Maximum 255 characters
 
 ## [Unreleased]
+
+## [3.1.0] - 2026-11-12
 
 ### Added
 - `deleteAccountData()` — Delete all account data (GDPR Article 17 — Right to Erasure)
