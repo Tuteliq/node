@@ -559,8 +559,13 @@ export interface VerifyImageMatchResult {
     face_match?: {
         /** Whether the two faces match */
         matched: boolean;
-        /** Face similarity (0.0-1.0), absent when no face was found */
+        /** Face similarity (0.0-1.0) as 1 minus the face distance, absent when no face was found. Prefer `match_score`. */
         similarity?: number;
+        /**
+         * How strongly the two faces match (0.0-1.0): 0.5 at the match decision, high for a clear match, near 0
+         * for different people. Absent when no face was found, and from API versions before it was added.
+         */
+        match_score?: number;
         /** Why matching failed (e.g. `no_face_detected`) */
         reason?: string;
     };
