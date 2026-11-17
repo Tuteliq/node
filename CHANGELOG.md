@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `match_score` on a verification's `face_match` (session results and webhooks) and on `verifyImageMatch`'s `face_match`: how strongly the faces match, 0 to 1, reading 0.5 at the match decision, high for a clear match and near 0 for different people. Optional, since an API version before it leaves it out. `confidence` and `similarity` are unchanged.
+
 ## [3.1.0] - 2026-11-12
 
 ### Added
