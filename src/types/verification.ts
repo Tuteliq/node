@@ -314,8 +314,16 @@ export interface FaceMatchResult {
     matched: boolean;
     /** Distance between the two faces (lower = more similar). Webhook deliveries only. */
     distance?: number;
-    /** Confidence score (0-1, higher = more confident) */
+    /**
+     * 1 minus the face distance (0-1). A clear match reads only about 0.55, so prefer `match_score`.
+     * Kept for compatibility.
+     */
     confidence: number;
+    /**
+     * How strongly the faces match (0-1): 0.5 at the match decision, high for a clear match, near 0 for
+     * different people. Absent from API versions before it was added.
+     */
+    match_score?: number;
 }
 
 export interface LivenessResult {

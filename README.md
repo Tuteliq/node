@@ -1005,7 +1005,7 @@ if (session.status === VerificationSessionStatus.COMPLETED && session.result) {
   console.log(session.result.age)           // 34
   console.log(session.result.age_range)     // { low, high } when the age came from the selfie alone
   console.log(session.result.is_minor)      // false
-  console.log(session.result.face_match)    // { matched: true, confidence: 0.97 }
+  console.log(session.result.face_match)    // { matched: true, confidence: 0.55, match_score: 0.94 }
   console.log(session.result.liveness)      // { valid: true }
   console.log(session.verification_mode)    // 'full' (document + live face) | 'liveness_only'
   console.log(session.document_evidence)    // 'photo' | 'chip' | 'photo_and_chip'
@@ -1020,6 +1020,8 @@ if (session.status === VerificationSessionStatus.COMPLETED && session.result) {
   console.log(session.result.document?.chip_verified)      // true when the data came from the chip
 }
 ```
+
+`face_match.match_score` (0 to 1) shows how strongly the selfie matches the document photo. It reads 0.5 at the match decision, high for a clear match and near 0 for different people, so `matched` is true when it is above 0.5. `face_match.confidence` is unchanged and reads only about 0.55 on a clear match, so prefer `match_score`. It is absent from an API version that does not send it.
 
 `status` can also be `document_required`: the session is waiting for the user to add a document photo before it can finish.
 

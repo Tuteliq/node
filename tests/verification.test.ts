@@ -203,7 +203,7 @@ describe('getVerificationSession', () => {
                 age_range: null,
                 is_minor: false,
                 document_evidence: 'photo_and_chip',
-                face_match: { matched: true, confidence: 0.97 },
+                face_match: { matched: true, confidence: 0.97, match_score: 0.99 },
                 liveness: { valid: true },
                 date_of_birth: '1992-04-01',
                 failure_reasons: null,
@@ -234,6 +234,7 @@ describe('getVerificationSession', () => {
         expect(status.document_evidence).toBe(DocumentEvidence.PHOTO_AND_CHIP);
         expect(status.result?.document?.chip_verified).toBe(true);
         expect(status.result?.document?.last_name).toBe('Example');
+        expect(status.result?.face_match?.match_score).toBe(0.99);
     });
 });
 
