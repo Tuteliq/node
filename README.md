@@ -165,7 +165,7 @@ console.log(result.metadata)      // { channel: 'discord' }
 These fields are:
 - **Echoed** in the API response for easy matching
 - **Included** in webhook payloads, enabling you to route alerts to the correct customer from a single webhook endpoint
-- **Stored** with the incident in Firestore for audit trail
+- **Stored** with the incident for the audit trail
 
 #### Support Threshold
 
@@ -628,7 +628,7 @@ console.log(result.total_pages)            // Total pages in PDF
 console.log(result.pages_analyzed)         // Pages with extractable text
 console.log(result.overall_risk_score)     // 0.0 - 1.0
 console.log(result.overall_severity)       // 'none' | 'low' | 'medium' | 'high' | 'critical'
-console.log(result.flagged_pages)          // Pages with risk >= 0.3
+console.log(result.flagged_pages)          // Pages flagged as risky
 console.log(result.detected_endpoints)     // Endpoints that found threats
 console.log(result.credits_used)           // Dynamic: max(3, pages × endpoints)
 
