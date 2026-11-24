@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.3.0] - 2026-11-24
+
 ### Added
 
 - `return_incident_ids` on detection inputs (text detections, `analyze`, `analyzeImage`): the result then carries `incident_ids`, the incidents the request recorded, so you can review or close them from your own tool. `analyze` returns the ids from both of its detections. Needs an API version that supports it; older versions leave the field out.
