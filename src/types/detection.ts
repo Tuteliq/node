@@ -469,6 +469,8 @@ export interface DetectNicknameInput {
  * pass it to `strongestAction` or `isActionable`.
  */
 export interface NicknameResult {
+    /** Present when the request set `return_incident_ids`: the incidents it recorded, possibly none. */
+    incident_ids?: string[];
     signal: 'none' | 'low' | 'review';
     categories: NicknameCategory[];
     /** How each part of the name was read */

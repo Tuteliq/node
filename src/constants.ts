@@ -168,6 +168,8 @@ export enum WebhookEventType {
     MINOR_DETECTED = 'minor.detected',
     CSAM_DETECTED = 'csam.detected',
     CSAM_CRITICAL = 'csam.critical',
+    /** An incident's moderation status changed, from any tool. `data` carries ids and labels only. */
+    INCIDENT_STATUS_CHANGED = 'incident.status_changed',
 }
 
 // =============================================================================

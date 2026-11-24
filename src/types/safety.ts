@@ -828,6 +828,8 @@ export interface AnalyzeInput extends TrackingFields {
 }
 
 export interface AnalyzeResult {
+    /** Present when the request set `return_incident_ids`: the incidents it recorded, possibly none. */
+    incident_ids?: string[];
     /** Overall risk assessment */
     risk_level: 'safe' | 'low' | 'medium' | 'high' | 'critical';
     /** Overall risk score (0-1) */
