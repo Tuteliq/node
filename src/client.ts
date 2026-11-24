@@ -475,6 +475,14 @@ export class Tuteliq {
     /**
      * Top-level request fields shared by the single-endpoint text detectors.
      */
+    /** The per-request incident options, sent only when set. */
+    private static incidentFields(input: { incident_moderation_enabled?: boolean; return_incident_ids?: boolean }): Record<string, unknown> {
+        return {
+            ...(input.incident_moderation_enabled !== undefined && { incident_moderation_enabled: input.incident_moderation_enabled }),
+            ...(input.return_incident_ids && { return_incident_ids: true }),
+        };
+    }
+
     private static textDetectionFields(input: TextDetectionRequestFields): Record<string, unknown> {
         return {
             ...(input.attestation !== undefined && { attestation: input.attestation }),
@@ -513,7 +521,7 @@ export class Tuteliq {
             ...(input.external_id && { external_id: input.external_id }),
             ...(input.customer_id && { customer_id: input.customer_id }),
             ...(input.metadata && { metadata: input.metadata }),
-            ...(input.incident_moderation_enabled !== undefined && { incident_moderation_enabled: input.incident_moderation_enabled }),
+            ...Tuteliq.incidentFields(input),
             ...(Object.keys(options).length > 0 && { options }),
         };
     }
@@ -864,7 +872,7 @@ export class Tuteliq {
                 ...(input.external_id && { external_id: input.external_id }),
                 ...(input.customer_id && { customer_id: input.customer_id }),
                 ...(input.metadata && { metadata: input.metadata }),
-                ...(input.incident_moderation_enabled !== undefined && { incident_moderation_enabled: input.incident_moderation_enabled }),
+                ...Tuteliq.incidentFields(input),
                 ...(input.continuationToken && { continuation_token: input.continuationToken }),
                 ...(input.resetConversation && { reset_conversation: true }),
                 ...Tuteliq.textDetectionFields(input),
@@ -924,7 +932,7 @@ export class Tuteliq {
                 ...(input.external_id && { external_id: input.external_id }),
                 ...(input.customer_id && { customer_id: input.customer_id }),
                 ...(input.metadata && { metadata: input.metadata }),
-                ...(input.incident_moderation_enabled !== undefined && { incident_moderation_enabled: input.incident_moderation_enabled }),
+                ...Tuteliq.incidentFields(input),
                 ...(input.continuationToken && { continuation_token: input.continuationToken }),
                 ...(input.resetConversation && { reset_conversation: true }),
                 ...Tuteliq.textDetectionFields(input),
@@ -973,7 +981,7 @@ export class Tuteliq {
                 ...(input.external_id && { external_id: input.external_id }),
                 ...(input.customer_id && { customer_id: input.customer_id }),
                 ...(input.metadata && { metadata: input.metadata }),
-                ...(input.incident_moderation_enabled !== undefined && { incident_moderation_enabled: input.incident_moderation_enabled }),
+                ...Tuteliq.incidentFields(input),
                 ...(input.continuationToken && { continuation_token: input.continuationToken }),
                 ...(input.resetConversation && { reset_conversation: true }),
                 ...Tuteliq.textDetectionFields(input),
@@ -1025,6 +1033,7 @@ export class Tuteliq {
                 // and then copy it into its own result — so `false` read back
                 // as honoured while both sub-calls still logged an incident.
                 incident_moderation_enabled: input.incident_moderation_enabled,
+                return_incident_ids: input.return_incident_ids,
                 // Same gap verdictOnly had before it: accepted on AnalyzeInput
                 // but never reached the detectors it fans out to.
                 flagProfanity: input.flagProfanity,
@@ -1042,6 +1051,7 @@ export class Tuteliq {
                 customer_id: input.customer_id,
                 metadata: input.metadata,
                 incident_moderation_enabled: input.incident_moderation_enabled,
+                return_incident_ids: input.return_incident_ids,
                 flagProfanity: input.flagProfanity,
                 flagRiskTerms: input.flagRiskTerms,
             }));
@@ -1111,6 +1121,7 @@ export class Tuteliq {
             ...(input.customer_id && { customer_id: input.customer_id }),
             ...(input.metadata && { metadata: input.metadata }),
             ...(input.incident_moderation_enabled !== undefined && { incident_moderation_enabled: input.incident_moderation_enabled }),
+            ...(input.return_incident_ids && { incident_ids: [...(bullyingResult?.incident_ids ?? []), ...(unsafeResult?.incident_ids ?? [])] }),
         };
     }
 
@@ -1214,7 +1225,7 @@ export class Tuteliq {
                 ...(input.external_id && { external_id: input.external_id }),
                 ...(input.customer_id && { customer_id: input.customer_id }),
                 ...(input.metadata && { metadata: input.metadata }),
-                ...(input.incident_moderation_enabled !== undefined && { incident_moderation_enabled: input.incident_moderation_enabled }),
+                ...Tuteliq.incidentFields(input),
             }
         );
         // `reading_level` is the name this SDK used before it matched the
@@ -1265,7 +1276,7 @@ export class Tuteliq {
                 ...(input.external_id && { external_id: input.external_id }),
                 ...(input.customer_id && { customer_id: input.customer_id }),
                 ...(input.metadata && { metadata: input.metadata }),
-                ...(input.incident_moderation_enabled !== undefined && { incident_moderation_enabled: input.incident_moderation_enabled }),
+                ...Tuteliq.incidentFields(input),
             }
         );
     }
@@ -2082,6 +2093,7 @@ export class Tuteliq {
         formData.append('platform', Tuteliq.resolvePlatform(input.platform));
         if (input.metadata) formData.append('metadata', JSON.stringify(input.metadata));
         if (input.incident_moderation_enabled !== undefined) formData.append('incident_moderation_enabled', String(input.incident_moderation_enabled));
+        if (input.return_incident_ids) formData.append('return_incident_ids', 'true');
         if (input.flagProfanity !== undefined) formData.append('flag_profanity', String(input.flagProfanity));
         if (input.flagRiskTerms !== undefined) formData.append('flag_risk_terms', String(input.flagRiskTerms));
 
@@ -2315,7 +2327,7 @@ export class Tuteliq {
                 ...(input.external_id && { external_id: input.external_id }),
                 ...(input.customer_id && { customer_id: input.customer_id }),
                 ...(input.metadata && { metadata: input.metadata }),
-                ...(input.incident_moderation_enabled !== undefined && { incident_moderation_enabled: input.incident_moderation_enabled }),
+                ...Tuteliq.incidentFields(input),
             }
         );
     }
@@ -2713,7 +2725,7 @@ export class Tuteliq {
                 ...(input.external_id && { external_id: input.external_id }),
                 ...(input.customer_id && { customer_id: input.customer_id }),
                 ...(input.metadata && { metadata: input.metadata }),
-                ...(input.incident_moderation_enabled !== undefined && { incident_moderation_enabled: input.incident_moderation_enabled }),
+                ...Tuteliq.incidentFields(input),
                 ...(Object.keys(options).length > 0 && { options }),
             }
         );
@@ -2915,7 +2927,7 @@ export class Tuteliq {
                 ...(input.external_id && { external_id: input.external_id }),
                 ...(input.customer_id && { customer_id: input.customer_id }),
                 ...(input.metadata && { metadata: input.metadata }),
-                ...(input.incident_moderation_enabled !== undefined && { incident_moderation_enabled: input.incident_moderation_enabled }),
+                ...Tuteliq.incidentFields(input),
             }
         );
     }

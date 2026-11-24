@@ -270,4 +270,9 @@ export interface ResultAdjustments {
 }
 
 /** Fields shared by every single-endpoint text detection result. */
-export interface TextDetectionFields extends AttestationFields, DeclaredContextFields, ResultAdjustments {}
+/** Present when the request set `return_incident_ids`: the incidents it recorded, possibly none. */
+export interface IncidentIdsField {
+    incident_ids?: string[];
+}
+
+export interface TextDetectionFields extends AttestationFields, DeclaredContextFields, ResultAdjustments, IncidentIdsField {}

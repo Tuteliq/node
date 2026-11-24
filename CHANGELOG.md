@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `return_incident_ids` on detection inputs (text detections, `analyze`, `analyzeImage`): the result then carries `incident_ids`, the incidents the request recorded, so you can review or close them from your own tool. `analyze` returns the ids from both of its detections. Needs an API version that supports it; older versions leave the field out.
+- `WebhookEventType.INCIDENT_STATUS_CHANGED` (`incident.status_changed`): an incident's moderation status changed, from any tool. `data` carries `incidentId`, `status`, `previousStatus` and, when known, `moderatorExternalId`.
+
 ## [3.2.0] - 2026-11-17
 
 ### Added

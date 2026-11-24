@@ -318,6 +318,8 @@ export interface AnalyzeImageInput extends TrackingFields {
 }
 
 export interface ImageAnalysisResult {
+    /** Present when the request set `return_incident_ids`: the incidents it recorded, possibly none. */
+    incident_ids?: string[];
     /** Customer-provided file reference (if provided) */
     file_id?: string;
     /** Vision analysis results */

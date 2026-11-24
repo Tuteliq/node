@@ -58,6 +58,13 @@ export interface TrackingFields {
      * Useful to suppress logging for test traffic or to opt specific calls in or out.
      */
     incident_moderation_enabled?: boolean;
+    /**
+     * When true, the result includes `incident_ids`: the incidents this request
+     * recorded (possibly none), so you can review or close them from your own
+     * tool. The response waits for the incidents to be written, so only ask
+     * when you need the ids.
+     */
+    return_incident_ids?: boolean;
 }
 
 export interface ApiError {

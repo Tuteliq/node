@@ -167,6 +167,11 @@ export interface WebhookEventData {
     /** True where delay is itself the harm, so the event can be routed to an on-call path */
     urgentAlert?: boolean;
     urgentReason?: string | null;
+    /** On `incident.status_changed`: the incident, its new and previous status, and who changed it when known. */
+    incidentId?: string;
+    status?: string;
+    previousStatus?: string | null;
+    moderatorExternalId?: string;
     /** Your correlation fields, echoed from the originating request */
     externalId?: string;
     customerId?: string;
