@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `country` on `getActionPlan`: the family's country as an ISO 3166-1 alpha-2 code (e.g. `'SE'`), so the plan names that country's helplines and emergency number. Defaults to the account's country; with neither, the plan names the kind of service to contact. A value that is not two letters throws a `ValidationError` before sending. Needs an API version that supports it.
+- `general_guidance` on `ActionPlanResult`: `true` when the plan is general guidance for any harm, given because a plan tailored to the situation could not be written. Absent otherwise.
+
 ## [3.3.0] - 2026-11-24
 
 ### Added
