@@ -890,14 +890,18 @@ const plan = await tuteliq.getActionPlan({
   situation: 'Someone is spreading rumors about me at school',
   childAge: 12,
   audience: 'child',  // 'child' | 'parent' | 'platform'
-  severity: 'medium'
+  severity: 'medium',
+  country: 'SE'       // optional ISO 3166-1 alpha-2; defaults to your account's country
 })
 
 console.log(plan.audience)       // 'child'
 console.log(plan.steps)          // ['Talk to a trusted adult', ...]
 console.log(plan.tone)           // 'supportive'
 console.log(plan.approx_reading_level)  // 'grade_5'
+console.log(plan.general_guidance)      // true only when the plan is general guidance
 ```
+
+`country` makes the plan name that country's helplines and emergency number. Without it the account's country is used; with neither, the plan names the kind of service to contact. `general_guidance` is `true` when the plan is general guidance for any harm, given because a plan tailored to the situation could not be written; it is absent otherwise.
 
 #### `generateReport(input)`
 

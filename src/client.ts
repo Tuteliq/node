@@ -205,6 +205,7 @@ const MAX_CONTENT_LENGTH = 50000;  // 50KB max content
 const MAX_MESSAGES_COUNT = 100;    // Max messages per request
 const MAX_NICKNAME_LENGTH = 64;    // Max display name length for detectNickname
 const ACTION_PLAN_AUDIENCES: readonly Audience[] = ['child', 'parent', 'platform'];
+const COUNTRY_CODE_PATTERN = /^[A-Za-z]{2}$/;  // ISO 3166-1 alpha-2
 
 /**
  * Tuteliq - AI-powered child safety analysis
@@ -1213,6 +1214,9 @@ export class Tuteliq {
         if (input.audience !== undefined && !ACTION_PLAN_AUDIENCES.includes(input.audience)) {
             throw new ValidationError(`audience must be one of: ${ACTION_PLAN_AUDIENCES.join(', ')}`);
         }
+        if (input.country !== undefined && !COUNTRY_CODE_PATTERN.test(input.country)) {
+            throw new ValidationError('country must be a two-letter ISO 3166-1 alpha-2 code');
+        }
 
         const plan = await this.requestWithRetry<ActionPlanResult>(
             'POST',
@@ -1222,6 +1226,7 @@ export class Tuteliq {
                 situation: input.situation,
                 child_age: input.childAge,
                 severity: input.severity,
+                ...(input.country !== undefined && { country: input.country }),
                 ...(input.external_id && { external_id: input.external_id }),
                 ...(input.customer_id && { customer_id: input.customer_id }),
                 ...(input.metadata && { metadata: input.metadata }),
